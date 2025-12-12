@@ -303,6 +303,7 @@ async function handleLogin(request: Request, config: MechAuthConfig): Promise<Re
  */
 async function handleLogout(request: Request, config: MechAuthConfig): Promise<Response> {
   let sessionId: string | undefined
+  let usedCookieFallback = false
   try {
     const body = await request.json()
     sessionId = body?.sessionId
@@ -316,6 +317,17 @@ async function handleLogout(request: Request, config: MechAuthConfig): Promise<R
       const cookies = parseCookies(cookieHeader)
       const cookieName = config.session?.cookie?.name || 'session'
       sessionId = cookies[cookieName]
+      usedCookieFallback = Boolean(sessionId)
+    }
+  }
+
+  if (usedCookieFallback) {
+    const origin = request.headers.get('origin')
+    if (origin) {
+      const requestOrigin = new URL(request.url).origin
+      if (origin !== requestOrigin) {
+        throw new AuthError('Forbidden', 'FORBIDDEN', 403)
+      }
     }
   }
 

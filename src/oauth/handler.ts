@@ -8,6 +8,7 @@
 import type { MechAuthConfig, RequestContext } from '../types.js'
 import { generateGitHubAuthUrl, handleGitHubCallback } from './github.js'
 import { generateGoogleAuthUrl, handleGoogleCallback } from './google.js'
+import { normalizeAuthPath } from '../utils/normalize-auth-path.js'
 import {
   upsertOAuthUser,
   createSession,
@@ -65,7 +66,7 @@ export async function handleOAuthRequest(
   config: MechAuthConfig
 ): Promise<Response> {
   const url = new URL(request.url)
-  const pathname = url.pathname.startsWith('/api/auth') ? url.pathname.replace(/^\/api/, '') : url.pathname
+  const pathname = normalizeAuthPath(url.pathname)
 
   // GitHub OAuth routes
   if (pathname === '/auth/oauth/github' || pathname === '/auth/github/login') {

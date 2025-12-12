@@ -60,10 +60,17 @@ async function pbkdf2DeriveKeyBytes(params: {
 }
 
 export function createPbkdf2PasswordHasher(options: Pbkdf2PasswordHasherOptions = {}): PasswordHasher {
-  const iterations = options.iterations ?? 210_000
+  const iterations = options.iterations ?? 600_000
   const hash = options.hash ?? 'SHA-256'
   const saltLength = options.saltLength ?? 16
   const keyLength = options.keyLength ?? 32
+
+  const MIN_ITERATIONS = 100_000
+  const MAX_ITERATIONS = 2_000_000
+  const MIN_KEY_LENGTH = 16
+  const MAX_KEY_LENGTH = 64
+  const MIN_SALT_LENGTH = 8
+  const MAX_SALT_LENGTH = 64
 
   return {
     id: 'pbkdf2',
@@ -100,14 +107,19 @@ export function createPbkdf2PasswordHasher(options: Pbkdf2PasswordHasherOptions 
 
       const parsedIterations = Number(iterationsPart.slice(2))
       const parsedKeyLength = Number(keyLengthPart.slice(2))
-      if (!Number.isFinite(parsedIterations) || parsedIterations <= 0) {
+      if (!Number.isFinite(parsedIterations) || parsedIterations < MIN_ITERATIONS || parsedIterations > MAX_ITERATIONS) {
         return false
       }
-      if (!Number.isFinite(parsedKeyLength) || parsedKeyLength <= 0) {
+      if (!Number.isFinite(parsedKeyLength) || parsedKeyLength < MIN_KEY_LENGTH || parsedKeyLength > MAX_KEY_LENGTH) {
         return false
       }
 
-      const parsedHash: 'SHA-256' | 'SHA-512' = algorithm === 'sha256' ? 'SHA-256' : algorithm === 'sha512' ? 'SHA-512' : (null as any)
+      let parsedHash: 'SHA-256' | 'SHA-512' | null = null
+      if (algorithm === 'sha256') {
+        parsedHash = 'SHA-256'
+      } else if (algorithm === 'sha512') {
+        parsedHash = 'SHA-512'
+      }
       if (!parsedHash) {
         return false
       }
@@ -118,6 +130,13 @@ export function createPbkdf2PasswordHasher(options: Pbkdf2PasswordHasherOptions 
         salt = decodeBase64UrlNoPadding(saltPart)
         expectedKey = decodeBase64UrlNoPadding(keyPart)
       } catch {
+        return false
+      }
+
+      if (salt.length < MIN_SALT_LENGTH || salt.length > MAX_SALT_LENGTH) {
+        return false
+      }
+      if (expectedKey.length !== parsedKeyLength) {
         return false
       }
 

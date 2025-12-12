@@ -83,7 +83,11 @@ export async function loginUser(
   let isValidPassword: boolean
   try {
     isValidPassword = await hasher.verify(user.password_hash, password)
-  } catch {
+  } catch (error) {
+    console.error(
+      'Password verification failed:',
+      error instanceof Error ? error.message : 'unknown'
+    )
     throw createAuthError('Invalid email or password', 'INVALID_CREDENTIALS', 401)
   }
 

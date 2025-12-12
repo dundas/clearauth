@@ -1,15 +1,15 @@
 # LightAuth
 
-A lightweight authentication library built with **Arctic** (OAuth 2.0), **Argon2id** (password hashing), and **Mech Storage** as the database backend. Designed for teams who need production-ready auth with minimal bundle size (~15KB vs 150KB).
+A lightweight authentication library built with **Arctic** (OAuth 2.0), pluggable password hashing, and **Mech Storage** as the database backend. Designed for teams who need production-ready auth with minimal bundle size (~15KB vs 150KB).
 
 ## Features
 
 - ✅ **Arctic OAuth 2.0** - Lightweight OAuth with GitHub, Google support (~10KB)
-- ✅ **Argon2id password hashing** - Secure, modern password hashing via @node-rs/argon2
+- ✅ **Pluggable password hashing** - Argon2id (Node) and PBKDF2 (Edge)
 - ✅ **Email/password authentication** - Built-in email verification and password reset
 - ✅ **Session management** - Secure, database-backed sessions with configurable expiration
 - ✅ **Mech Storage PostgreSQL** as the database (HTTP-based, no direct DB connection needed)
-- ✅ **Cloudflare Workers compatible** - OAuth + sessions work in edge runtimes when using an HTTP-based database
+- ✅ **Cloudflare Workers compatible** - Use `lightauth/edge` for OAuth + email/password without native dependencies
 - ✅ **React hooks** included (`useAuth`, `AuthProvider`)
 - ✅ **TypeScript-first** - Full type safety with Kysely query builder
 - ✅ **Minimal bundle size** - ~15KB (vs 150KB for Better Auth)
@@ -19,12 +19,12 @@ A lightweight authentication library built with **Arctic** (OAuth 2.0), **Argon2
 > **Note:** Install from npm as `lightauth`.
 
 ```bash
-npm install lightauth arctic kysely @node-rs/argon2 oslo
+npm install lightauth
 ```
 
 Or using a specific version/tag:
 ```bash
-npm install lightauth arctic kysely @node-rs/argon2 oslo
+npm install lightauth
 ```
 
 Or add to `package.json`:
@@ -32,13 +32,27 @@ Or add to `package.json`:
 {
   "dependencies": {
     "lightauth": "^0.3.0",
-    "arctic": "^2.0.0",
-    "kysely": "^0.27.3",
-    "@node-rs/argon2": "^2.0.0",
-    "oslo": "^1.2.0"
+    "arctic": "^2.0.0"
   }
 }
 ```
+
+## Entrypoints
+
+- **`lightauth`**
+  - **Environment:** universal
+  - **Default password hasher:** PBKDF2 (WebCrypto)
+- **`lightauth/node`**
+  - **Environment:** Node.js
+  - **Default password hasher:** Argon2id
+  - **API:** `createMechAuthNode(...)`
+- **`lightauth/edge`**
+  - **Environment:** Cloudflare Workers / edge runtimes
+  - **Default password hasher:** PBKDF2 (no native dependencies)
+  - **API:** `createMechAuth(...)`
+- **`lightauth/argon2`**
+  - **Environment:** Node.js
+  - **Export:** `createArgon2idPasswordHasher(...)` (use to explicitly override)
 
 ## Quick Start
 
@@ -47,9 +61,9 @@ Or add to `package.json`:
 Create `lib/auth.ts`:
 
 ```ts
-import { createMechAuth } from "lightauth"
+import { createMechAuthNode } from "lightauth/node"
 
-export const authConfig = createMechAuth({
+export const authConfig = createMechAuthNode({
   secret: process.env.AUTH_SECRET!,
   baseUrl: process.env.BASE_URL || "http://localhost:3000",
   database: {
@@ -60,7 +74,7 @@ export const authConfig = createMechAuth({
     github: {
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-      redirectUri: `${process.env.BASE_URL}/auth/callback/github`,
+      redirectUri: `${process.env.BASE_URL}/api/auth/callback/github`,
     },
   },
 })

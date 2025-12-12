@@ -11,6 +11,7 @@ import { handleOAuthRequest } from './oauth/handler.js'
 import { handleAuthRequest } from './auth/handler.js'
 import type { MechAuthConfig } from './types.js'
 import { handleCorsPreflightRequest, addCorsHeaders } from './utils/cors.js'
+import { normalizeAuthPath } from './utils/normalize-auth-path.js'
 
 /**
  * Unified authentication request handler
@@ -117,11 +118,7 @@ export async function handleMechAuthRequest(
  * @returns True if the path is an OAuth route
  */
 function isOAuthRoute(pathname: string): boolean {
-  // Remove trailing slash for consistent matching
-  let normalizedPath = pathname.replace(/\/$/, '')
-  if (normalizedPath.startsWith('/api/auth')) {
-    normalizedPath = normalizedPath.replace(/^\/api/, '')
-  }
+  const normalizedPath = normalizeAuthPath(pathname)
 
   // OAuth-specific patterns
   const oauthPatterns = [
@@ -151,11 +148,7 @@ function isOAuthRoute(pathname: string): boolean {
  * @returns True if the path is an auth route
  */
 function isAuthRoute(pathname: string): boolean {
-  // Remove trailing slash for consistent matching
-  let normalizedPath = pathname.replace(/\/$/, '')
-  if (normalizedPath.startsWith('/api/auth')) {
-    normalizedPath = normalizedPath.replace(/^\/api/, '')
-  }
+  const normalizedPath = normalizeAuthPath(pathname)
 
   // Email/password auth patterns
   const authPatterns = [
