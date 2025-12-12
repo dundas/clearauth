@@ -9,11 +9,12 @@
  * - Initial session creation
  */
 
-import { hash } from '@node-rs/argon2'
 import type { Kysely } from 'kysely'
 import type { Database, User, NewUser, NewEmailVerificationToken } from '../database/schema.js'
 import { createSession } from '../oauth/callbacks.js'
 import type { RequestContext } from '../types.js'
+import type { PasswordHasher } from '../password-hasher.js'
+import { createPbkdf2PasswordHasher } from '../password-hasher.js'
 import {
   isValidEmail,
   validatePassword,
@@ -22,31 +23,12 @@ import {
   createAuthError,
 } from './utils.js'
 
-/**
- * Argon2id configuration
- * Recommended settings for security/performance balance
- */
-const ARGON2_CONFIG = {
-  memoryCost: 19456, // 19 MiB
-  timeCost: 2, // 2 iterations
-  parallelism: 1, // Single thread (Cloudflare Workers compatible)
-}
+const defaultPasswordHasher = createPbkdf2PasswordHasher()
 
 /**
  * Email verification token expiration (24 hours)
  */
 const VERIFICATION_TOKEN_EXPIRY = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
-
-/**
- * Hash password using Argon2id
- *
- * @param password - Plain text password
- * @returns Hashed password
- * @internal
- */
-async function hashPassword(password: string): Promise<string> {
-  return await hash(password, ARGON2_CONFIG)
-}
 
 /**
  * Register a new user with email and password
@@ -76,8 +58,11 @@ export async function registerUser(
   db: Kysely<Database>,
   email: string,
   password: string,
-  context?: RequestContext
+  context?: RequestContext,
+  passwordHasher?: PasswordHasher
 ): Promise<{ user: User; sessionId: string; verificationToken: string }> {
+  const hasher = passwordHasher ?? defaultPasswordHasher
+
   // Validate email
   if (!isValidEmail(email)) {
     throw createAuthError('Invalid email address', 'INVALID_EMAIL', 400)
@@ -104,7 +89,7 @@ export async function registerUser(
   }
 
   // Hash password
-  const passwordHash = await hashPassword(password)
+  const passwordHash = await hasher.hash(password)
 
   // Create user
   const newUser: NewUser = {

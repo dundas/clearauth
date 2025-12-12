@@ -15,7 +15,13 @@ import { registerUser, toPublicRegisterResult } from './register.js'
 import { verifyEmail, resendVerificationEmail } from './verify-email.js'
 import { loginUser, toPublicLoginResult } from './login.js'
 import { requestPasswordReset, resetPassword } from './reset-password.js'
-import { deleteSession, validateSession, parseCookies } from '../oauth/callbacks.js'
+import {
+  deleteSession,
+  validateSession,
+  parseCookies,
+  createDeleteCookieHeader,
+  createCookieHeader,
+} from '../oauth/callbacks.js'
 import { AuthError } from './utils.js'
 import { toPublicUser } from '../database/schema.js'
 
@@ -132,10 +138,26 @@ async function handleRegister(request: Request, config: MechAuthConfig): Promise
   }
 
   const context = getRequestContext(request)
-  const result = await registerUser(config.database, email, password, context)
+  const result = await registerUser(config.database, email, password, context, config.passwordHasher)
   const publicResult = toPublicRegisterResult(result)
 
-  return jsonResponse(publicResult, 201)
+  const cookieName = config.session?.cookie?.name ?? 'session'
+  const expiresInSeconds = config.session?.expiresIn ?? 2592000
+  const sessionCookie = createCookieHeader(cookieName, result.sessionId, {
+    httpOnly: config.session?.cookie?.httpOnly ?? true,
+    secure: config.session?.cookie?.secure ?? config.isProduction ?? true,
+    sameSite: config.session?.cookie?.sameSite ?? 'lax',
+    path: config.session?.cookie?.path ?? '/',
+    maxAge: expiresInSeconds,
+  })
+
+  return new Response(JSON.stringify(publicResult), {
+    status: 201,
+    headers: {
+      'Content-Type': 'application/json',
+      'Set-Cookie': sessionCookie,
+    },
+  })
 }
 
 /**
@@ -238,10 +260,26 @@ async function handleLogin(request: Request, config: MechAuthConfig): Promise<Re
   }
 
   const context = getRequestContext(request)
-  const result = await loginUser(config.database, email, password, context)
+  const result = await loginUser(config.database, email, password, context, config.passwordHasher)
   const publicResult = toPublicLoginResult(result)
 
-  return jsonResponse(publicResult)
+  const cookieName = config.session?.cookie?.name ?? 'session'
+  const expiresInSeconds = config.session?.expiresIn ?? 2592000
+  const sessionCookie = createCookieHeader(cookieName, result.sessionId, {
+    httpOnly: config.session?.cookie?.httpOnly ?? true,
+    secure: config.session?.cookie?.secure ?? config.isProduction ?? true,
+    sameSite: config.session?.cookie?.sameSite ?? 'lax',
+    path: config.session?.cookie?.path ?? '/',
+    maxAge: expiresInSeconds,
+  })
+
+  return new Response(JSON.stringify(publicResult), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Set-Cookie': sessionCookie,
+    },
+  })
 }
 
 /**
@@ -264,15 +302,38 @@ async function handleLogin(request: Request, config: MechAuthConfig): Promise<Re
  * ```
  */
 async function handleLogout(request: Request, config: MechAuthConfig): Promise<Response> {
-  const body = await parseJsonBody(request)
-  const { sessionId } = body
-
-  if (!sessionId) {
-    throw new AuthError('Session ID is required', 'MISSING_SESSION_ID', 400)
+  let sessionId: string | undefined
+  try {
+    const body = await request.json()
+    sessionId = body?.sessionId
+  } catch {
+    // Allow empty/invalid JSON body for cookie-based logout
   }
 
-  await deleteSession(config.database, sessionId)
-  return jsonResponse({ success: true })
+  if (!sessionId) {
+    const cookieHeader = request.headers.get('cookie')
+    if (cookieHeader) {
+      const cookies = parseCookies(cookieHeader)
+      const cookieName = config.session?.cookie?.name || 'session'
+      sessionId = cookies[cookieName]
+    }
+  }
+
+  const cookieName = config.session?.cookie?.name || 'session'
+  const cookiePath = config.session?.cookie?.path ?? '/'
+
+  if (sessionId) {
+    await deleteSession(config.database, sessionId)
+  }
+
+  const deleteSessionCookie = createDeleteCookieHeader(cookieName, { path: cookiePath })
+  return new Response(JSON.stringify({ success: true }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Set-Cookie': deleteSessionCookie,
+    },
+  })
 }
 
 /**
@@ -345,7 +406,7 @@ async function handleResetPassword(request: Request, config: MechAuthConfig): Pr
     throw new AuthError('Token and password are required', 'MISSING_FIELDS', 400)
   }
 
-  const result = await resetPassword(config.database, token, password)
+  const result = await resetPassword(config.database, token, password, config.passwordHasher)
   return jsonResponse(result)
 }
 
@@ -430,7 +491,7 @@ export async function handleAuthRequest(
 ): Promise<Response> {
   try {
     const url = new URL(request.url)
-    const path = url.pathname
+    const path = url.pathname.startsWith('/api/auth') ? url.pathname.replace(/^\/api/, '') : url.pathname
 
     // Handle GET /auth/session
     if (request.method === 'GET' && path === '/auth/session') {

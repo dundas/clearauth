@@ -7,12 +7,15 @@
  * - Session creation on successful login
  */
 
-import { verify } from '@node-rs/argon2'
 import type { Kysely } from 'kysely'
 import type { Database, User } from '../database/schema.js'
 import { createSession } from '../oauth/callbacks.js'
 import type { RequestContext } from '../types.js'
+import type { PasswordHasher } from '../password-hasher.js'
+import { createPbkdf2PasswordHasher } from '../password-hasher.js'
 import { normalizeEmail, createAuthError } from './utils.js'
+
+const defaultPasswordHasher = createPbkdf2PasswordHasher()
 
 /**
  * Login user with email and password
@@ -44,8 +47,11 @@ export async function loginUser(
   db: Kysely<Database>,
   email: string,
   password: string,
-  context?: RequestContext
+  context?: RequestContext,
+  passwordHasher?: PasswordHasher
 ): Promise<{ user: User; sessionId: string }> {
+  const hasher = passwordHasher ?? defaultPasswordHasher
+
   if (!email || !password) {
     throw createAuthError('Email and password are required', 'INVALID_CREDENTIALS', 401)
   }
@@ -76,9 +82,8 @@ export async function loginUser(
   // Verify password
   let isValidPassword: boolean
   try {
-    isValidPassword = await verify(user.password_hash, password)
-  } catch (error) {
-    // Password verification failed (invalid hash or other error)
+    isValidPassword = await hasher.verify(user.password_hash, password)
+  } catch {
     throw createAuthError('Invalid email or password', 'INVALID_CREDENTIALS', 401)
   }
 

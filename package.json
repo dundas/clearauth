@@ -43,6 +43,18 @@
     "./react": {
       "import": "./dist/react.js",
       "types": "./dist/react.d.ts"
+    },
+    "./edge": {
+      "import": "./dist/edge.js",
+      "types": "./dist/edge.d.ts"
+    },
+    "./argon2": {
+      "import": "./dist/password-hasher-argon2.js",
+      "types": "./dist/password-hasher-argon2.d.ts"
+    },
+    "./node": {
+      "import": "./dist/node.js",
+      "types": "./dist/node.d.ts"
     }
   },
   "scripts": {

@@ -65,7 +65,7 @@ export async function handleOAuthRequest(
   config: MechAuthConfig
 ): Promise<Response> {
   const url = new URL(request.url)
-  const pathname = url.pathname
+  const pathname = url.pathname.startsWith('/api/auth') ? url.pathname.replace(/^\/api/, '') : url.pathname
 
   // GitHub OAuth routes
   if (pathname === '/auth/oauth/github' || pathname === '/auth/github/login') {

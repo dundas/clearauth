@@ -118,7 +118,10 @@ export async function handleMechAuthRequest(
  */
 function isOAuthRoute(pathname: string): boolean {
   // Remove trailing slash for consistent matching
-  const normalizedPath = pathname.replace(/\/$/, '')
+  let normalizedPath = pathname.replace(/\/$/, '')
+  if (normalizedPath.startsWith('/api/auth')) {
+    normalizedPath = normalizedPath.replace(/^\/api/, '')
+  }
 
   // OAuth-specific patterns
   const oauthPatterns = [
@@ -140,18 +143,23 @@ function isOAuthRoute(pathname: string): boolean {
  * - POST `/auth/resend-verification` - Resend verification email
  * - POST `/auth/login` - User login
  * - POST `/auth/logout` - User logout
- * - POST `/auth/request-reset` - Request password reset
+ * - POST `/auth/request-reset` - Request password reset token
  * - POST `/auth/reset-password` - Reset password with token
+ * - GET  `/auth/session` - Get current user session
  *
  * @param pathname - URL pathname to check
  * @returns True if the path is an auth route
  */
 function isAuthRoute(pathname: string): boolean {
   // Remove trailing slash for consistent matching
-  const normalizedPath = pathname.replace(/\/$/, '')
+  let normalizedPath = pathname.replace(/\/$/, '')
+  if (normalizedPath.startsWith('/api/auth')) {
+    normalizedPath = normalizedPath.replace(/^\/api/, '')
+  }
 
   // Email/password auth patterns
   const authPatterns = [
+    /^\/auth\/session$/,
     /^\/auth\/register$/,
     /^\/auth\/verify-email$/,
     /^\/auth\/resend-verification$/,
@@ -191,6 +199,7 @@ export function getSupportedRoutes() {
       { method: 'GET', path: '/auth/google/callback', description: 'Google OAuth callback (alternative)' },
     ],
     auth: [
+      { method: 'GET', path: '/auth/session', description: 'Get current user session (from cookie)' },
       { method: 'POST', path: '/auth/register', description: 'User registration with email and password' },
       { method: 'POST', path: '/auth/verify-email', description: 'Verify email with token' },
       { method: 'POST', path: '/auth/resend-verification', description: 'Resend email verification token' },

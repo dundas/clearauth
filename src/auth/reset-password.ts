@@ -8,27 +8,20 @@
  * - Session invalidation for security
  */
 
-import { hash } from '@node-rs/argon2'
 import type { Kysely } from 'kysely'
 import type { Database, NewPasswordResetToken } from '../database/schema.js'
 import { deleteAllUserSessions } from '../oauth/callbacks.js'
 import { generateSecureToken, normalizeEmail, validatePassword, createAuthError } from './utils.js'
 import { isValidPasswordResetToken } from '../database/schema.js'
+import type { PasswordHasher } from '../password-hasher.js'
+import { createPbkdf2PasswordHasher } from '../password-hasher.js'
 
 /**
  * Password reset token expiration (1 hour for security)
  */
 const RESET_TOKEN_EXPIRY = 60 * 60 * 1000 // 1 hour in milliseconds
 
-/**
- * Argon2id configuration
- * Recommended settings for security/performance balance
- */
-const ARGON2_CONFIG = {
-  memoryCost: 19456, // 19 MiB
-  timeCost: 2, // 2 iterations
-  parallelism: 1, // Single thread (Cloudflare Workers compatible)
-}
+const defaultPasswordHasher = createPbkdf2PasswordHasher()
 
 /**
  * Request password reset
@@ -186,8 +179,11 @@ export async function verifyResetToken(
 export async function resetPassword(
   db: Kysely<Database>,
   token: string,
-  newPassword: string
+  newPassword: string,
+  passwordHasher?: PasswordHasher
 ): Promise<{ success: boolean }> {
+  const hasher = passwordHasher ?? defaultPasswordHasher
+
   if (!token || token.trim() === '') {
     throw createAuthError('Reset token is required', 'INVALID_TOKEN', 400)
   }
@@ -217,7 +213,7 @@ export async function resetPassword(
   }
 
   // Hash new password
-  const passwordHash = await hash(newPassword, ARGON2_CONFIG)
+  const passwordHash = await hasher.hash(newPassword)
 
   // Update user's password
   await db

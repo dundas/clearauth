@@ -24,6 +24,8 @@ export * from "./auth/login.js"
 export * from "./auth/reset-password.js"
 export * from "./auth/handler.js"
 
+export * from "./password-hasher.js"
+
 // Unified handler (recommended entry point)
 export * from "./handler.js"
 

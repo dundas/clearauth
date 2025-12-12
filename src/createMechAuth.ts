@@ -11,6 +11,7 @@ import { createMechKysely, type MechKyselyConfig } from "./mech-kysely.js"
 import { MechConfigError } from "./errors.js"
 import { getDefaultLogger } from "./logger.js"
 import type { MechAuthConfig } from "./types.js"
+import { createPbkdf2PasswordHasher } from "./password-hasher.js"
 
 // ============================================================================
 // Session & Cookie Presets
@@ -107,6 +108,8 @@ export type CreateMechAuthOptions = {
   oauth?: MechAuthConfig['oauth']
   /** Password validation configuration (optional) */
   password?: MechAuthConfig['password']
+  /** Password hashing implementation (optional) */
+  passwordHasher?: MechAuthConfig['passwordHasher']
 }
 
 /**
@@ -261,6 +264,7 @@ export function createMechAuth(options: CreateMechAuthOptions): MechAuthConfig {
       password: options.password ?? {
         minLength: 8,
       },
+      passwordHasher: options.passwordHasher ?? createPbkdf2PasswordHasher(),
     }
 
     return config

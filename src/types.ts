@@ -6,6 +6,7 @@
 
 import type { Kysely } from 'kysely'
 import type { Database } from './database/schema.js'
+import type { PasswordHasher } from './password-hasher.js'
 
 /**
  * OAuth Provider Configuration
@@ -146,6 +147,11 @@ export interface MechAuthConfig {
    * Password validation configuration
    */
   password?: PasswordConfig
+
+  /**
+   * Password hashing implementation
+   */
+  passwordHasher?: PasswordHasher
 
   /**
    * CORS configuration for browser clients
