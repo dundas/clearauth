@@ -54,6 +54,11 @@ Or add to `package.json`:
   - **Environment:** Node.js
   - **Export:** `createArgon2idPasswordHasher(...)` (use to explicitly override)
 
+## Migration Notes
+
+- **Password hashing default:** `createMechAuth(...)` defaults to PBKDF2 for portability (works in edge runtimes). If you want Argon2id by default in Node.js, use `createMechAuthNode(...)` from `lightauth/node`.
+- **Cookie-based sessions:** `/auth/register` and `/auth/login` set the session cookie on success. `/auth/logout` supports cookie-based logout. If your client previously stored `sessionId` outside cookies, update it to rely on cookies (recommended) or continue sending an explicit `sessionId` in the logout request body.
+
 ## Quick Start
 
 ### Server Setup
@@ -102,7 +107,7 @@ export async function POST(request: Request) {
 Create `src/auth.ts`:
 
 ```ts
-import { createMechAuth, handleMechAuthRequest } from "lightauth"
+import { createMechAuth, handleMechAuthRequest } from "lightauth/edge"
 
 export function createAuth(env: Env) {
   return createMechAuth({
