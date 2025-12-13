@@ -1,10 +1,8 @@
-'use client'
-
 import { useMemo, useState } from 'react'
 
 import { useAuth } from 'clearauth/react'
 
-export default function HomePage() {
+export default function App() {
   const { user, loading, error, signIn, signUp, signOut, loginWithGitHub, loginWithGoogle, refresh } = useAuth()
 
   const [email, setEmail] = useState('')
@@ -14,7 +12,7 @@ export default function HomePage() {
 
   return (
     <main className="container">
-      <h1>ClearAuth (Next.js)</h1>
+      <h1>ClearAuth (Cloudflare Pages)</h1>
       <p>
         This app demonstrates <code>email/password</code> + <code>GitHub</code> + <code>Google</code> auth.
       </p>

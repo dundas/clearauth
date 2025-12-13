@@ -7,7 +7,7 @@
  *
  * @example
  * ```ts
- * import { createMechKysely } from "lightauth"
+ * import { createMechKysely } from "clearauth"
  * import { betterAuth } from "better-auth"
  *
  * const db = createMechKysely()

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { validateUrl, validateUuid, validateNonEmpty, validatePositive, validateRange } from "../validation.js"
-import { MechConfigError } from "../errors.js"
+import { ClearAuthConfigError } from "../errors.js"
 
 describe("validation", () => {
   describe("validateUrl", () => {
@@ -11,8 +11,8 @@ describe("validation", () => {
     })
 
     it("should reject invalid URLs", () => {
-      expect(() => validateUrl("not a url")).toThrow(MechConfigError)
-      expect(() => validateUrl("")).toThrow(MechConfigError)
+      expect(() => validateUrl("not a url")).toThrow(ClearAuthConfigError)
+      expect(() => validateUrl("")).toThrow(ClearAuthConfigError)
     })
   })
 
@@ -23,9 +23,9 @@ describe("validation", () => {
     })
 
     it("should reject invalid UUIDs", () => {
-      expect(() => validateUuid("not-a-uuid")).toThrow(MechConfigError)
-      expect(() => validateUuid("550e8400-e29b-41d4-a716")).toThrow(MechConfigError)
-      expect(() => validateUuid("")).toThrow(MechConfigError)
+      expect(() => validateUuid("not-a-uuid")).toThrow(ClearAuthConfigError)
+      expect(() => validateUuid("550e8400-e29b-41d4-a716")).toThrow(ClearAuthConfigError)
+      expect(() => validateUuid("")).toThrow(ClearAuthConfigError)
     })
   })
 
@@ -35,12 +35,12 @@ describe("validation", () => {
     })
 
     it("should reject empty strings", () => {
-      expect(() => validateNonEmpty("", "test")).toThrow(MechConfigError)
-      expect(() => validateNonEmpty("   ", "test")).toThrow(MechConfigError)
+      expect(() => validateNonEmpty("", "test")).toThrow(ClearAuthConfigError)
+      expect(() => validateNonEmpty("   ", "test")).toThrow(ClearAuthConfigError)
     })
 
     it("should reject undefined", () => {
-      expect(() => validateNonEmpty(undefined, "test")).toThrow(MechConfigError)
+      expect(() => validateNonEmpty(undefined, "test")).toThrow(ClearAuthConfigError)
     })
   })
 
@@ -51,8 +51,8 @@ describe("validation", () => {
     })
 
     it("should reject zero and negative numbers", () => {
-      expect(() => validatePositive(0, "test")).toThrow(MechConfigError)
-      expect(() => validatePositive(-1, "test")).toThrow(MechConfigError)
+      expect(() => validatePositive(0, "test")).toThrow(ClearAuthConfigError)
+      expect(() => validatePositive(-1, "test")).toThrow(ClearAuthConfigError)
     })
   })
 
@@ -64,8 +64,8 @@ describe("validation", () => {
     })
 
     it("should reject values outside range", () => {
-      expect(() => validateRange(-1, 0, 10, "test")).toThrow(MechConfigError)
-      expect(() => validateRange(11, 0, 10, "test")).toThrow(MechConfigError)
+      expect(() => validateRange(-1, 0, 10, "test")).toThrow(ClearAuthConfigError)
+      expect(() => validateRange(11, 0, 10, "test")).toThrow(ClearAuthConfigError)
     })
   })
 })

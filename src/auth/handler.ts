@@ -10,7 +10,7 @@
  * - POST /auth/reset-password - Reset password with token
  */
 
-import type { MechAuthConfig } from '../types.js'
+import type { ClearAuthConfig } from '../types.js'
 import { registerUser, toPublicRegisterResult } from './register.js'
 import { verifyEmail, resendVerificationEmail } from './verify-email.js'
 import { loginUser, toPublicLoginResult } from './login.js'
@@ -129,7 +129,7 @@ function errorResponse(error: any): Response {
  * }
  * ```
  */
-async function handleRegister(request: Request, config: MechAuthConfig): Promise<Response> {
+async function handleRegister(request: Request, config: ClearAuthConfig): Promise<Response> {
   const body = await parseJsonBody(request)
   const { email, password } = body
 
@@ -180,7 +180,7 @@ async function handleRegister(request: Request, config: MechAuthConfig): Promise
  * }
  * ```
  */
-async function handleVerifyEmail(request: Request, config: MechAuthConfig): Promise<Response> {
+async function handleVerifyEmail(request: Request, config: ClearAuthConfig): Promise<Response> {
   const body = await parseJsonBody(request)
   const { token } = body
 
@@ -211,7 +211,7 @@ async function handleVerifyEmail(request: Request, config: MechAuthConfig): Prom
  * }
  * ```
  */
-async function handleResendVerification(request: Request, config: MechAuthConfig): Promise<Response> {
+async function handleResendVerification(request: Request, config: ClearAuthConfig): Promise<Response> {
   const body = await parseJsonBody(request)
   const { email } = body
 
@@ -251,7 +251,7 @@ async function handleResendVerification(request: Request, config: MechAuthConfig
  * }
  * ```
  */
-async function handleLogin(request: Request, config: MechAuthConfig): Promise<Response> {
+async function handleLogin(request: Request, config: ClearAuthConfig): Promise<Response> {
   const body = await parseJsonBody(request)
   const { email, password } = body
 
@@ -301,7 +301,7 @@ async function handleLogin(request: Request, config: MechAuthConfig): Promise<Re
  * }
  * ```
  */
-async function handleLogout(request: Request, config: MechAuthConfig): Promise<Response> {
+async function handleLogout(request: Request, config: ClearAuthConfig): Promise<Response> {
   let sessionId: string | undefined
   let usedCookieFallback = false
   try {
@@ -371,7 +371,7 @@ async function handleLogout(request: Request, config: MechAuthConfig): Promise<R
  * }
  * ```
  */
-async function handleRequestReset(request: Request, config: MechAuthConfig): Promise<Response> {
+async function handleRequestReset(request: Request, config: ClearAuthConfig): Promise<Response> {
   const body = await parseJsonBody(request)
   const { email } = body
 
@@ -410,7 +410,7 @@ async function handleRequestReset(request: Request, config: MechAuthConfig): Pro
  * }
  * ```
  */
-async function handleResetPassword(request: Request, config: MechAuthConfig): Promise<Response> {
+async function handleResetPassword(request: Request, config: ClearAuthConfig): Promise<Response> {
   const body = await parseJsonBody(request)
   const { token, password } = body
 
@@ -448,7 +448,7 @@ async function handleResetPassword(request: Request, config: MechAuthConfig): Pr
  * }
  * ```
  */
-async function handleSession(request: Request, config: MechAuthConfig): Promise<Response> {
+async function handleSession(request: Request, config: ClearAuthConfig): Promise<Response> {
   // Get session ID from cookie
   const cookieHeader = request.headers.get('cookie')
   if (!cookieHeader) {
@@ -488,7 +488,7 @@ async function handleSession(request: Request, config: MechAuthConfig): Promise<
  * - POST /auth/reset-password - Reset password with token
  *
  * @param request - HTTP request
- * @param config - Mech Auth configuration
+ * @param config - Clear Auth configuration
  * @returns HTTP response
  *
  * @example
@@ -499,7 +499,7 @@ async function handleSession(request: Request, config: MechAuthConfig): Promise<
  */
 export async function handleAuthRequest(
   request: Request,
-  config: MechAuthConfig
+  config: ClearAuthConfig
 ): Promise<Response> {
   try {
     const url = new URL(request.url)

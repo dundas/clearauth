@@ -5,7 +5,7 @@
  * Provides login initiation and callback handling endpoints.
  */
 
-import type { MechAuthConfig, RequestContext } from '../types.js'
+import type { ClearAuthConfig, RequestContext } from '../types.js'
 import { generateGitHubAuthUrl, handleGitHubCallback } from './github.js'
 import { generateGoogleAuthUrl, handleGoogleCallback } from './google.js'
 import { normalizeAuthPath } from '../utils/normalize-auth-path.js'
@@ -45,7 +45,7 @@ function createHeadersWithCookies(cookies: string[], location?: string): Headers
  * provider handlers based on URL path.
  *
  * @param request - HTTP request
- * @param config - Mech Auth configuration
+ * @param config - Clear Auth configuration
  * @returns HTTP response
  *
  * @example
@@ -63,7 +63,7 @@ function createHeadersWithCookies(cookies: string[], location?: string): Headers
  */
 export async function handleOAuthRequest(
   request: Request,
-  config: MechAuthConfig
+  config: ClearAuthConfig
 ): Promise<Response> {
   const url = new URL(request.url)
   const pathname = normalizeAuthPath(url.pathname)
@@ -95,7 +95,7 @@ export async function handleOAuthRequest(
  * Generates GitHub OAuth URL and redirects user to GitHub for authentication.
  * Stores state parameter in cookie for CSRF protection.
  */
-async function handleGitHubLogin(request: Request, config: MechAuthConfig): Promise<Response> {
+async function handleGitHubLogin(request: Request, config: ClearAuthConfig): Promise<Response> {
   try {
     const { url, state } = await generateGitHubAuthUrl(config)
 
@@ -128,7 +128,7 @@ async function handleGitHubLogin(request: Request, config: MechAuthConfig): Prom
  */
 async function handleGitHubCallbackRequest(
   request: Request,
-  config: MechAuthConfig
+  config: ClearAuthConfig
 ): Promise<Response> {
   try {
     const url = new URL(request.url)
@@ -200,7 +200,7 @@ async function handleGitHubCallbackRequest(
  * Generates Google OAuth URL and redirects user to Google for authentication.
  * Stores state and code verifier in cookies for CSRF protection and PKCE.
  */
-async function handleGoogleLogin(request: Request, config: MechAuthConfig): Promise<Response> {
+async function handleGoogleLogin(request: Request, config: ClearAuthConfig): Promise<Response> {
   try {
     const { url, state, codeVerifier } = await generateGoogleAuthUrl(config)
 
@@ -240,7 +240,7 @@ async function handleGoogleLogin(request: Request, config: MechAuthConfig): Prom
  */
 async function handleGoogleCallbackRequest(
   request: Request,
-  config: MechAuthConfig
+  config: ClearAuthConfig
 ): Promise<Response> {
   try {
     const url = new URL(request.url)

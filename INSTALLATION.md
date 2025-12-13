@@ -5,7 +5,7 @@
 ### Quick Install
 
 ```bash
-npm install lightauth arctic @node-rs/argon2 oslo kysely
+npm install clearauth arctic @node-rs/argon2 oslo kysely
 ```
 
 ### Using package.json
@@ -15,7 +15,7 @@ Add the following to your `package.json`:
 ```json
 {
   "dependencies": {
-    "lightauth": "^0.3.0",
+    "clearauth": "^0.3.0",
     "arctic": "^3.0.0",
     "@node-rs/argon2": "^2.0.0",
     "oslo": "^1.2.0",
@@ -32,19 +32,19 @@ npm install
 ### Using Yarn
 
 ```bash
-yarn add lightauth arctic @node-rs/argon2 oslo kysely
+yarn add clearauth arctic @node-rs/argon2 oslo kysely
 ```
 
 ### Using pnpm
 
 ```bash
-pnpm add lightauth arctic @node-rs/argon2 oslo kysely
+pnpm add clearauth arctic @node-rs/argon2 oslo kysely
 ```
 
 ### Using Bun
 
 ```bash
-bun add lightauth arctic @node-rs/argon2 oslo kysely
+bun add clearauth arctic @node-rs/argon2 oslo kysely
 ```
 
 ## Platform-Specific Dependencies
@@ -52,13 +52,13 @@ bun add lightauth arctic @node-rs/argon2 oslo kysely
 ### Next.js
 
 ```bash
-npm install lightauth arctic @node-rs/argon2 oslo kysely react
+npm install clearauth arctic @node-rs/argon2 oslo kysely react
 ```
 
 ### Cloudflare Workers/Pages
 
 ```bash
-npm install lightauth arctic @node-rs/argon2 oslo kysely
+npm install clearauth arctic @node-rs/argon2 oslo kysely
 ```
 
 > **Note:** Argon2 requires Node.js bindings and won't work in Cloudflare Workers. Password hashing should be done in a separate Node.js service or use bcrypt as an alternative.
@@ -67,12 +67,12 @@ npm install lightauth arctic @node-rs/argon2 oslo kysely
 
 With Express:
 ```bash
-npm install lightauth arctic @node-rs/argon2 oslo kysely express
+npm install clearauth arctic @node-rs/argon2 oslo kysely express
 ```
 
 With Fastify:
 ```bash
-npm install lightauth arctic @node-rs/argon2 oslo kysely fastify
+npm install clearauth arctic @node-rs/argon2 oslo kysely fastify
 ```
 
 ## Verification
@@ -80,13 +80,13 @@ npm install lightauth arctic @node-rs/argon2 oslo kysely fastify
 After installation, verify the package is installed:
 
 ```bash
-npm list lightauth
+npm list clearauth
 ```
 
 You should see:
 
 ```
-└── lightauth@0.3.0
+└── clearauth@0.3.0
 ```
 
 ## TypeScript Support
@@ -98,13 +98,13 @@ TypeScript types are included automatically. No additional `@types` package need
 To update to the latest version:
 
 ```bash
-npm update lightauth
+npm update clearauth
 ```
 
 Or update to a specific version:
 
 ```bash
-npm install lightauth@0.3.0
+npm install clearauth@0.3.0
 ```
 
 ## Migrating from v0.2.0 (Better Auth)
@@ -123,7 +123,7 @@ npm install arctic @node-rs/argon2 oslo
 
 3. **Update imports:**
 
-Replace imports from `@mech/auth` with `lightauth`.
+Replace imports from `@mech/auth` with `clearauth`.
 
 3. **Update your code** - See [CHANGELOG.md](./CHANGELOG.md) for migration guide
 
@@ -133,12 +133,12 @@ Replace imports from `@mech/auth` with `lightauth`.
 
 Make sure you're using the correct npm package name:
 ```bash
-npm install lightauth
+npm install clearauth
 ```
 
 Not:
 ```bash
-npm install @mech/auth  # ❌ Old package name (use lightauth)
+npm install @mech/auth  # ❌ Old package name (use clearauth)
 ```
 
 ### Permission Issues
@@ -146,7 +146,7 @@ npm install @mech/auth  # ❌ Old package name (use lightauth)
 If you encounter permission errors, try:
 
 ```bash
-npm install lightauth --legacy-peer-deps
+npm install clearauth --legacy-peer-deps
 ```
 
 ### Corporate Firewall/Proxy

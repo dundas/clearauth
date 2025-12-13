@@ -1,5 +1,5 @@
 /**
- * Unified HTTP request handler for LightAuth
+ * Unified HTTP request handler for ClearAuth
  *
  * This module provides a single entry point for handling all authentication requests,
  * automatically routing to the appropriate handler (OAuth or email/password).
@@ -9,7 +9,7 @@
 
 import { handleOAuthRequest } from './oauth/handler.js'
 import { handleAuthRequest } from './auth/handler.js'
-import type { MechAuthConfig } from './types.js'
+import type { ClearAuthConfig } from './types.js'
 import { handleCorsPreflightRequest, addCorsHeaders } from './utils/cors.js'
 import { normalizeAuthPath } from './utils/normalize-auth-path.js'
 
@@ -21,7 +21,7 @@ import { normalizeAuthPath } from './utils/normalize-auth-path.js'
  * - Email/password routes: All other `/auth/*` routes
  *
  * @param request - The HTTP request to handle
- * @param config - Mech auth configuration
+ * @param config - ClearAuth configuration
  * @returns HTTP response
  *
  * @example
@@ -29,7 +29,7 @@ import { normalizeAuthPath } from './utils/normalize-auth-path.js'
  * // Cloudflare Workers
  * export default {
  *   async fetch(request: Request, env: Env): Promise<Response> {
- *     const config: MechAuthConfig = {
+ *     const config: ClearAuthConfig = {
  *       database: createMechKysely({ appId: env.MECH_APP_ID, apiKey: env.MECH_API_KEY }),
  *       secret: env.AUTH_SECRET,
  *       baseUrl: 'https://yourdomain.com',
@@ -41,7 +41,7 @@ import { normalizeAuthPath } from './utils/normalize-auth-path.js'
  *         },
  *       },
  *     }
- *     return handleMechAuthRequest(request, config)
+ *     return handleClearAuthRequest(request, config)
  *   },
  * }
  * ```
@@ -49,21 +49,21 @@ import { normalizeAuthPath } from './utils/normalize-auth-path.js'
  * @example
  * ```typescript
  * // Next.js API route
- * import { handleMechAuthRequest } from 'lightauth'
+ * import { handleClearAuthRequest } from 'clearauth'
  * import { config } from '@/lib/auth-config'
  *
  * export async function GET(request: Request) {
- *   return handleMechAuthRequest(request, config)
+ *   return handleClearAuthRequest(request, config)
  * }
  *
  * export async function POST(request: Request) {
- *   return handleMechAuthRequest(request, config)
+ *   return handleClearAuthRequest(request, config)
  * }
  * ```
  */
-export async function handleMechAuthRequest(
+export async function handleClearAuthRequest(
   request: Request,
-  config: MechAuthConfig
+  config: ClearAuthConfig
 ): Promise<Response> {
   // Handle CORS preflight requests
   if (request.method === 'OPTIONS' && config.cors) {
@@ -223,8 +223,8 @@ export function healthCheck(): Response {
   return new Response(
     JSON.stringify({
       status: 'ok',
-      service: 'lightauth',
-      version: '1.0.0',
+      service: 'clearauth',
+      version: '0.3.0',
       timestamp: new Date().toISOString(),
     }),
     {

@@ -3,18 +3,18 @@ import {
   defaultSessionConfig,
   shortSessionConfig,
   longSessionConfig,
-  createMechAuth,
+  createClearAuth,
 } from "../createMechAuth.js"
-import { MechConfigError } from "../errors.js"
+import { ClearAuthConfigError } from "../errors.js"
 
-describe("createMechAuth Arctic API", () => {
+describe("createClearAuth API", () => {
   describe("session configs", () => {
     it("defaultSessionConfig has 7 day expiration", () => {
       expect(defaultSessionConfig.expiresIn).toBe(60 * 60 * 24 * 7) // 7 days
       expect(defaultSessionConfig.cookie.name).toBe('session')
       expect(defaultSessionConfig.cookie.httpOnly).toBe(true)
       expect(defaultSessionConfig.cookie.sameSite).toBe('lax')
-      expect(defaultSessionConfig.cookie.secure).toBe(true)
+      expect('secure' in defaultSessionConfig.cookie).toBe(false)
       expect(defaultSessionConfig.cookie.path).toBe('/')
     })
 
@@ -23,7 +23,7 @@ describe("createMechAuth Arctic API", () => {
       expect(shortSessionConfig.cookie.name).toBe('session')
       expect(shortSessionConfig.cookie.httpOnly).toBe(true)
       expect(shortSessionConfig.cookie.sameSite).toBe('strict')
-      expect(shortSessionConfig.cookie.secure).toBe(true)
+      expect('secure' in shortSessionConfig.cookie).toBe(false)
     })
 
     it("longSessionConfig has 30 day expiration", () => {
@@ -31,11 +31,11 @@ describe("createMechAuth Arctic API", () => {
       expect(longSessionConfig.cookie.name).toBe('session')
       expect(longSessionConfig.cookie.httpOnly).toBe(true)
       expect(longSessionConfig.cookie.sameSite).toBe('lax')
-      expect(longSessionConfig.cookie.secure).toBe(true)
+      expect('secure' in longSessionConfig.cookie).toBe(false)
     })
   })
 
-  describe("createMechAuth()", () => {
+  describe("createClearAuth()", () => {
     // Valid UUID for testing
     const TEST_APP_ID = '550e8400-e29b-41d4-a716-446655440000'
     const TEST_API_KEY = 'test-api-key-123'
@@ -43,37 +43,37 @@ describe("createMechAuth Arctic API", () => {
     it("should throw error if secret is missing", () => {
       expect(() =>
         // @ts-expect-error Testing missing secret
-        createMechAuth({
+        createClearAuth({
           database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
           baseUrl: 'https://example.com',
         })
-      ).toThrow(MechConfigError)
+      ).toThrow(ClearAuthConfigError)
     })
 
     it("should throw error if baseUrl is missing", () => {
       expect(() =>
         // @ts-expect-error Testing missing baseUrl
-        createMechAuth({
+        createClearAuth({
           secret: 'test-secret',
           database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
         })
-      ).toThrow(MechConfigError)
+      ).toThrow(ClearAuthConfigError)
     })
 
     it("should throw error for default secret in production", () => {
       expect(() =>
-        createMechAuth({
+        createClearAuth({
           secret: 'better-auth-secret-123456789',
           database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
           baseUrl: 'https://example.com',
           isProduction: true,
         })
-      ).toThrow(MechConfigError)
+      ).toThrow(ClearAuthConfigError)
     })
 
     it("should accept default secret in development", () => {
       // Should not throw
-      const config = createMechAuth({
+      const config = createClearAuth({
         secret: 'dev-secret-key',
         database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
         baseUrl: 'https://example.com',
@@ -86,7 +86,7 @@ describe("createMechAuth Arctic API", () => {
     })
 
     it("should create config with simplified database format", () => {
-      const config = createMechAuth({
+      const config = createClearAuth({
         secret: 'test-secret',
         database: {
           appId: TEST_APP_ID,
@@ -102,7 +102,7 @@ describe("createMechAuth Arctic API", () => {
     })
 
     it("should use default session config if not provided", () => {
-      const config = createMechAuth({
+      const config = createClearAuth({
         secret: 'test-secret',
         database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
         baseUrl: 'https://example.com',
@@ -112,7 +112,7 @@ describe("createMechAuth Arctic API", () => {
     })
 
     it("should accept custom session config", () => {
-      const config = createMechAuth({
+      const config = createClearAuth({
         secret: 'test-secret',
         database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
         baseUrl: 'https://example.com',
@@ -123,7 +123,7 @@ describe("createMechAuth Arctic API", () => {
     })
 
     it("should accept OAuth provider configuration", () => {
-      const config = createMechAuth({
+      const config = createClearAuth({
         secret: 'test-secret',
         database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
         baseUrl: 'https://example.com',
@@ -141,7 +141,7 @@ describe("createMechAuth Arctic API", () => {
     })
 
     it("should accept password validation config", () => {
-      const config = createMechAuth({
+      const config = createClearAuth({
         secret: 'test-secret',
         database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
         baseUrl: 'https://example.com',
@@ -154,7 +154,7 @@ describe("createMechAuth Arctic API", () => {
     })
 
     it("should default to minLength 8 if not provided", () => {
-      const config = createMechAuth({
+      const config = createClearAuth({
         secret: 'test-secret',
         database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
         baseUrl: 'https://example.com',

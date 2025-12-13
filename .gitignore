@@ -6,6 +6,15 @@ dist/
 .env.local
 .env.*.local
 
+.dev.vars
+.dev.vars.*
+
 .claude/
 .windsurf/
 ai-dev-tasks/
+
+.wrangler/
+.next/
+out/
+.turbo/
+.bun/

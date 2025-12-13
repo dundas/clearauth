@@ -1,20 +1,20 @@
 # Troubleshooting Guide
 
-> **Note**: LightAuth requires explicit configuration. The library does not read environment variables automatically. All configuration must be passed to `createMechAuth()` directly.
+> **Note**: ClearAuth requires explicit configuration. The library does not read environment variables automatically. All configuration must be passed to `createClearAuth()` directly.
 
 ## Configuration Issues
 
 ### "appId is required" or "apiKey is required"
 
-**Cause**: You didn't pass the required configuration to `createMechAuth()`.
+**Cause**: You didn't pass the required configuration to `createClearAuth()`.
 
 **Solution**: Pass all required configuration explicitly:
 
 **Node.js / Next.js:**
 ```ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
-export const auth = createMechAuth({
+export const auth = createClearAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
   database: {
     appId: process.env.MECH_APP_ID!,
@@ -27,7 +27,7 @@ export const auth = createMechAuth({
 **Cloudflare Workers:**
 ```ts
 export function createAuth(env: Env) {
-  return createMechAuth({
+  return createClearAuth({
     secret: env.BETTER_AUTH_SECRET,
     database: {
       appId: env.MECH_APP_ID,
@@ -50,7 +50,7 @@ export function createAuth(env: Env) {
 
 **Solution**: Ensure it's a valid HTTP/HTTPS URL:
 ```ts
-createMechAuth({
+createClearAuth({
   database: {
     appId: "...",
     apiKey: "...",
@@ -68,14 +68,14 @@ createMechAuth({
 **Cause**: Your API key is invalid, expired, or incorrect.
 
 **Solution**:
-1. Verify the `apiKey` you're passing to `createMechAuth()` is correct
+1. Verify the `apiKey` you're passing to `createClearAuth()` is correct
 2. Check if the key has been rotated on the Mech side
 3. Generate a new API key from the Mech Storage dashboard
 4. Ensure you're using the right app ID
 
 **Example:**
 ```ts
-createMechAuth({
+createClearAuth({
   database: {
     appId: "your-correct-app-id",
     apiKey: "your-valid-api-key", // Make sure this is current
@@ -132,7 +132,7 @@ createMechAuth({
 1. Optimize your SQL query (add indexes, reduce data size)
 2. Increase the timeout:
    ```ts
-   createMechAuth({
+   createClearAuth({
      database: {
        appId: "...",
        apiKey: "...",
@@ -209,7 +209,7 @@ wrangler pages deploy dist --project-name=your-project
 
 ### "secret is required"
 
-**Cause**: You didn't pass the `secret` parameter to `createMechAuth()`.
+**Cause**: You didn't pass the `secret` parameter to `createClearAuth()`.
 
 **Solution**: Generate and pass a strong secret:
 
@@ -220,7 +220,7 @@ BETTER_AUTH_SECRET=$(openssl rand -base64 32)
 
 Then pass it explicitly:
 ```ts
-createMechAuth({
+createClearAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
   database: { /* ... */ }
 })
@@ -234,7 +234,7 @@ wrangler secret put BETTER_AUTH_SECRET
 
 Then use it:
 ```ts
-createMechAuth({
+createClearAuth({
   secret: env.BETTER_AUTH_SECRET,
   database: { /* ... */ }
 })
@@ -246,7 +246,7 @@ createMechAuth({
 
 **Solution**: Generate a strong secret (minimum 32 characters) and ensure `isProduction` is set correctly:
 ```ts
-createMechAuth({
+createClearAuth({
   secret: env.BETTER_AUTH_SECRET, // Must be a real secret
   isProduction: true, // This triggers the validation
   database: { /* ... */ }
@@ -262,9 +262,9 @@ createMechAuth({
 Pass a custom logger to see detailed logs:
 
 ```ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
-const auth = createMechAuth({
+const auth = createClearAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
   database: {
     appId: process.env.MECH_APP_ID!,
@@ -296,7 +296,7 @@ wrangler secret list
 ### Test the Mech SQL client directly
 
 ```ts
-import { MechSqlClient } from "lightauth"
+import { MechSqlClient } from "clearauth"
 
 const client = new MechSqlClient({
   appId: "your-app-id",
@@ -315,5 +315,5 @@ If this works, the issue is likely with Better Auth configuration.
 
 1. Check this troubleshooting guide
 2. Review the [README.md](./README.md) and [examples](./examples/)
-3. Check the [GitHub issues](https://github.com/your-org/mech-auth/issues)
+3. Check the [GitHub issues](https://github.com/dundas/clearauth/issues)
 4. Contact Mech support at support@mechdna.net

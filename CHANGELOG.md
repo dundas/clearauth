@@ -28,9 +28,9 @@ This release completely replaces Better Auth with a lightweight Arctic-based imp
 ### Changed
 
 - **BREAKING**: Replaced `better-auth` with `arctic`, `@node-rs/argon2`, `oslo`
-- **BREAKING**: `createMechAuth()` now returns `MechAuthConfig` instead of Better Auth instance
-- **BREAKING**: Use `handleMechAuthRequest(request, config)` instead of `auth.handler`
-- **BREAKING**: React imports changed from `better-auth/react` to `lightauth/react`
+- **BREAKING**: `createClearAuth()` now returns `ClearAuthConfig` instead of Better Auth instance
+- **BREAKING**: Use `handleClearAuthRequest(request, config)` instead of `auth.handler`
+- **BREAKING**: React imports changed from `better-auth/react` to `clearauth/react`
 - **BREAKING**: Session config uses new format with `cookie` object:
   ```ts
   // Old (Better Auth)
@@ -48,7 +48,7 @@ This release completely replaces Better Auth with a lightweight Arctic-based imp
     }
   }
   ```
-- **BREAKING**: `baseUrl` parameter now required in `createMechAuth()`
+- **BREAKING**: `baseUrl` parameter now required in `createClearAuth()`
 - Reduced bundle size from ~150KB to ~15KB (90% reduction)
 - Improved TypeScript types with full Kysely integration
 - Enhanced security with Argon2id and PKCE for OAuth
@@ -57,7 +57,7 @@ This release completely replaces Better Auth with a lightweight Arctic-based imp
 
 - **BREAKING**: Removed `better-auth` dependency
 - **BREAKING**: Removed all Better Auth plugins and middleware
-- **BREAKING**: Removed `auth.handler` - use `handleMechAuthRequest()` instead
+- **BREAKING**: Removed `auth.handler` - use `handleClearAuthRequest()` instead
 - **BREAKING**: Removed automatic `process.env` reading (explicit config only)
 
 ### Migration Guide
@@ -71,18 +71,18 @@ npm install arctic @node-rs/argon2 oslo
 **Update server code:**
 ```ts
 // Before (Better Auth)
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
-const auth = createMechAuth({
+const auth = createClearAuth({
   emailAndPassword: { enabled: true }
 })
 
 export const handler = auth.handler
 
 // After (Arctic)
-import { createMechAuth, handleMechAuthRequest } from "lightauth"
+import { createClearAuth, handleClearAuthRequest } from "clearauth"
 
-const config = createMechAuth({
+const config = createClearAuth({
   secret: process.env.AUTH_SECRET!,
   baseUrl: process.env.BASE_URL!,
   database: {
@@ -92,7 +92,7 @@ const config = createMechAuth({
 })
 
 export async function handler(request: Request) {
-  return handleMechAuthRequest(request, config)
+  return handleClearAuthRequest(request, config)
 }
 ```
 
@@ -102,7 +102,7 @@ export async function handler(request: Request) {
 import { useSession, signIn } from "better-auth/react"
 
 // After
-import { useAuth } from "lightauth/react"
+import { useAuth } from "clearauth/react"
 
 function Component() {
   const { user, signIn } = useAuth()
@@ -113,18 +113,18 @@ function Component() {
 **Update session config:**
 ```ts
 // Before
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
-const auth = createMechAuth({
+const auth = createClearAuth({
   session: {
     updateAge: 86400 // 1 day
   }
 })
 
 // After
-import { createMechAuth, defaultSessionConfig } from "lightauth"
+import { createClearAuth, defaultSessionConfig } from "clearauth"
 
-const config = createMechAuth({
+const config = createClearAuth({
   // ...
   session: defaultSessionConfig, // or shortSessionConfig, longSessionConfig
 })
@@ -144,7 +144,7 @@ const config = createMechAuth({
 
 - **Cloudflare Workers compatibility**: Library now works in any JavaScript runtime (Cloudflare Workers, Deno, Bun, etc.)
 - **Cloudflare Pages support**: Full documentation including routing workarounds for Pages Functions
-- Explicit configuration API - all parameters must be passed directly to `createMechAuth()`
+- Explicit configuration API - all parameters must be passed directly to `createClearAuth()`
 - `isProduction` parameter for runtime environment detection
 - Comprehensive deployment guide comparing Next.js/Vercel, Cloudflare Workers, and Cloudflare Pages
 - Updated integration examples for Next.js (with `toNextJsHandler`), Vite, Cloudflare Workers, and Cloudflare Pages
@@ -154,14 +154,14 @@ const config = createMechAuth({
 
 > **Note:** Install with:
 > ```bash
-> npm install lightauth
+> npm install clearauth
 > ```
 
 ### Changed
 
 - **BREAKING**: `secret` parameter is now **required** (was optional, no longer falls back to env vars)
 - **BREAKING**: `database` configuration is now **required** (no longer reads from env vars)
-- **BREAKING**: `createMechAuth()` no longer reads `process.env` automatically
+- **BREAKING**: `createClearAuth()` no longer reads `process.env` automatically
 - **BREAKING**: `MechSqlClient` constructor now requires config object (no env var fallback)
 - **BREAKING**: `createMechKysely()` now requires config parameter (no env var fallback)
 - `createCookieConfig()` now accepts `isProduction` parameter instead of reading `process.env.NODE_ENV`
@@ -178,7 +178,7 @@ const config = createMechAuth({
 **Before (0.1.0):**
 ```ts
 // Library automatically read from process.env
-const auth = createMechAuth({
+const auth = createClearAuth({
   emailAndPassword: { enabled: true }
 })
 ```
@@ -186,7 +186,7 @@ const auth = createMechAuth({
 **After (0.2.0):**
 ```ts
 // Explicit configuration required
-const auth = createMechAuth({
+const auth = createClearAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
   database: {
     appId: process.env.MECH_APP_ID!,

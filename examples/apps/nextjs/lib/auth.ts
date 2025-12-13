@@ -1,4 +1,4 @@
-import { createMechAuthNode, defaultSessionConfig } from 'lightauth/node'
+import { createClearAuthNode, defaultSessionConfig } from 'clearauth/node'
 
 function requireEnv(name: string): string {
   const value = process.env[name]
@@ -8,7 +8,7 @@ function requireEnv(name: string): string {
   return value
 }
 
-export const authConfig = createMechAuthNode({
+export const authConfig = createClearAuthNode({
   secret: requireEnv('AUTH_SECRET'),
   baseUrl: requireEnv('NEXT_PUBLIC_BASE_URL'),
   database: {

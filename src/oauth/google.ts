@@ -6,7 +6,7 @@
  */
 
 import { generateState, generateCodeVerifier } from 'arctic'
-import type { MechAuthConfig, OAuthUserProfile, OAuthCallbackResult } from '../types.js'
+import type { ClearAuthConfig, OAuthUserProfile, OAuthCallbackResult } from '../types.js'
 import { createGoogleProvider } from './arctic-providers.js'
 
 /**
@@ -38,7 +38,7 @@ interface GoogleUser {
  * // Redirect user to url
  * ```
  */
-export async function generateGoogleAuthUrl(config: MechAuthConfig): Promise<{
+export async function generateGoogleAuthUrl(config: ClearAuthConfig): Promise<{
   url: URL
   state: string
   codeVerifier: string
@@ -74,7 +74,7 @@ export async function generateGoogleAuthUrl(config: MechAuthConfig): Promise<{
  * ```
  */
 export async function handleGoogleCallback(
-  config: MechAuthConfig,
+  config: ClearAuthConfig,
   code: string,
   storedState: string,
   returnedState: string,

@@ -6,7 +6,7 @@
  */
 
 import { generateState } from 'arctic'
-import type { MechAuthConfig, OAuthUserProfile, OAuthCallbackResult } from '../types.js'
+import type { ClearAuthConfig, OAuthUserProfile, OAuthCallbackResult } from '../types.js'
 import { createGitHubProvider } from './arctic-providers.js'
 
 /**
@@ -46,7 +46,7 @@ interface GitHubEmail {
  * // Redirect user to url
  * ```
  */
-export async function generateGitHubAuthUrl(config: MechAuthConfig): Promise<{
+export async function generateGitHubAuthUrl(config: ClearAuthConfig): Promise<{
   url: URL
   state: string
 }> {
@@ -79,7 +79,7 @@ export async function generateGitHubAuthUrl(config: MechAuthConfig): Promise<{
  * ```
  */
 export async function handleGitHubCallback(
-  config: MechAuthConfig,
+  config: ClearAuthConfig,
   code: string,
   storedState: string,
   returnedState: string

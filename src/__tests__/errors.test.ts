@@ -1,68 +1,68 @@
 import { describe, it, expect } from "vitest"
 import {
-  MechAuthError,
-  MechSqlError,
-  MechConfigError,
-  MechNetworkError,
-  MechTimeoutError,
-  MechRateLimitError
+  ClearAuthError,
+  ClearAuthSqlError,
+  ClearAuthConfigError,
+  ClearAuthNetworkError,
+  ClearAuthTimeoutError,
+  ClearAuthRateLimitError
 } from "../errors.js"
 
 describe("errors", () => {
-  describe("MechAuthError", () => {
+  describe("ClearAuthError", () => {
     it("should create error with code and details", () => {
-      const err = new MechAuthError("Test error", "TEST_CODE", { foo: "bar" })
+      const err = new ClearAuthError("Test error", "TEST_CODE", { foo: "bar" })
       expect(err.message).toBe("Test error")
       expect(err.code).toBe("TEST_CODE")
       expect(err.details).toEqual({ foo: "bar" })
-      expect(err.name).toBe("MechAuthError")
+      expect(err.name).toBe("ClearAuthError")
     })
   })
 
-  describe("MechSqlError", () => {
+  describe("ClearAuthSqlError", () => {
     it("should create SQL error", () => {
-      const err = new MechSqlError("SQL failed", { query: "SELECT *" })
+      const err = new ClearAuthSqlError("SQL failed", { query: "SELECT *" })
       expect(err.message).toBe("SQL failed")
-      expect(err.code).toBe("MECH_SQL_ERROR")
-      expect(err.name).toBe("MechSqlError")
+      expect(err.code).toBe("CLEARAUTH_SQL_ERROR")
+      expect(err.name).toBe("ClearAuthSqlError")
     })
   })
 
-  describe("MechConfigError", () => {
+  describe("ClearAuthConfigError", () => {
     it("should create config error", () => {
-      const err = new MechConfigError("Missing env var", { env: "MECH_APP_ID" })
+      const err = new ClearAuthConfigError("Missing env var", { env: "MECH_APP_ID" })
       expect(err.message).toBe("Missing env var")
-      expect(err.code).toBe("MECH_CONFIG_ERROR")
-      expect(err.name).toBe("MechConfigError")
+      expect(err.code).toBe("CLEARAUTH_CONFIG_ERROR")
+      expect(err.name).toBe("ClearAuthConfigError")
     })
   })
 
-  describe("MechNetworkError", () => {
+  describe("ClearAuthNetworkError", () => {
     it("should create network error with status code", () => {
-      const err = new MechNetworkError("Connection failed", 500, { url: "https://example.com" })
+      const err = new ClearAuthNetworkError("Connection failed", 500, { url: "https://example.com" })
       expect(err.message).toBe("Connection failed")
       expect(err.statusCode).toBe(500)
-      expect(err.code).toBe("MECH_NETWORK_ERROR")
-      expect(err.name).toBe("MechNetworkError")
+      expect(err.code).toBe("CLEARAUTH_NETWORK_ERROR")
+      expect(err.name).toBe("ClearAuthNetworkError")
     })
   })
 
-  describe("MechTimeoutError", () => {
+  describe("ClearAuthTimeoutError", () => {
     it("should create timeout error", () => {
-      const err = new MechTimeoutError("Timeout", { timeout: 30000 })
+      const err = new ClearAuthTimeoutError("Timeout", { timeout: 30000 })
       expect(err.message).toBe("Timeout")
-      expect(err.code).toBe("MECH_TIMEOUT_ERROR")
-      expect(err.name).toBe("MechTimeoutError")
+      expect(err.code).toBe("CLEARAUTH_TIMEOUT_ERROR")
+      expect(err.name).toBe("ClearAuthTimeoutError")
     })
   })
 
-  describe("MechRateLimitError", () => {
+  describe("ClearAuthRateLimitError", () => {
     it("should create rate limit error with retry after", () => {
-      const err = new MechRateLimitError(60000, { endpoint: "/query" })
+      const err = new ClearAuthRateLimitError(60000, { endpoint: "/query" })
       expect(err.message).toContain("Rate limit exceeded")
       expect(err.retryAfter).toBe(60000)
-      expect(err.code).toBe("MECH_RATE_LIMIT_ERROR")
-      expect(err.name).toBe("MechRateLimitError")
+      expect(err.code).toBe("CLEARAUTH_RATE_LIMIT_ERROR")
+      expect(err.name).toBe("ClearAuthRateLimitError")
     })
   })
 })

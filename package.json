@@ -1,8 +1,9 @@
 {
-  "name": "lightauth",
+  "name": "clearauth",
   "version": "0.3.0",
-  "description": "LightAuth: lightweight authentication library with Arctic OAuth, Argon2id hashing, and Kysely-backed storage",
+  "description": "ClearAuth: lightweight authentication library with Arctic OAuth, pluggable password hashing, and Kysely-backed storage",
   "keywords": [
+    "clearauth",
     "auth",
     "arctic",
     "oauth",
@@ -16,12 +17,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dundas/lightauth.git"
+    "url": "git+https://github.com/dundas/clearauth.git"
   },
   "bugs": {
-    "url": "https://github.com/dundas/lightauth/issues"
+    "url": "https://github.com/dundas/clearauth/issues"
   },
-  "homepage": "https://github.com/dundas/lightauth#readme",
+  "homepage": "https://github.com/dundas/clearauth#readme",
   "private": false,
   "type": "module",
   "main": "dist/index.js",
@@ -59,6 +60,7 @@
   },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "prepare": "npm run build",
     "prepack": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",

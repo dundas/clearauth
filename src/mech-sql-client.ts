@@ -1,4 +1,9 @@
-import { MechSqlError, MechConfigError, MechNetworkError, MechTimeoutError, MechRateLimitError } from "./errors.js"
+import {
+  ClearAuthSqlError,
+  ClearAuthNetworkError,
+  ClearAuthTimeoutError,
+  ClearAuthRateLimitError,
+} from "./errors.js"
 import { Logger, getDefaultLogger } from "./logger.js"
 import { validateUrl, validateUuid, validateNonEmpty, validatePositive, validateRange } from "./validation.js"
 
@@ -99,7 +104,7 @@ export class MechSqlClient {
    * @param sql - SQL query string (use $1, $2, etc. for parameters)
    * @param params - Query parameters
    * @returns Object with rows and rowCount
-   * @throws MechSqlError, MechNetworkError, MechTimeoutError, MechRateLimitError
+   * @throws ClearAuthSqlError, ClearAuthNetworkError, ClearAuthTimeoutError, ClearAuthRateLimitError
    *
    * @example
    * ```ts
@@ -162,7 +167,7 @@ export class MechSqlClient {
       if (res.status === 429) {
         const retryAfter = parseInt(res.headers.get("Retry-After") ?? "60", 10) * 1000
         this.logger.warn("Rate limited by Mech Storage", { retryAfter })
-        throw new MechRateLimitError(retryAfter, { statusCode: 429 })
+        throw new ClearAuthRateLimitError(retryAfter, { statusCode: 429 })
       }
 
       if (!res.ok) {
@@ -172,7 +177,7 @@ export class MechSqlClient {
           statusText: res.statusText,
           responseLength: text.length
         })
-        throw new MechNetworkError(`HTTP ${res.status}: ${res.statusText}`, res.status, {
+        throw new ClearAuthNetworkError(`HTTP ${res.status}: ${res.statusText}`, res.status, {
           responseText: text.substring(0, 500) // truncate for logging
         })
       }
@@ -184,7 +189,7 @@ export class MechSqlClient {
           code: json.error?.code,
           message: json.error?.message
         })
-        throw new MechSqlError(json.error?.message ?? "Unknown error", {
+        throw new ClearAuthSqlError(json.error?.message ?? "Unknown error", {
           code: json.error?.code,
           hints: json.error?.hints
         })
@@ -202,7 +207,7 @@ export class MechSqlClient {
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         this.logger.error("Query timeout", { timeout: this.timeout })
-        throw new MechTimeoutError(`Query timed out after ${this.timeout}ms`, {
+        throw new ClearAuthTimeoutError(`Query timed out after ${this.timeout}ms`, {
           timeout: this.timeout
         })
       }
@@ -213,9 +218,9 @@ export class MechSqlClient {
   }
 
   private isRetryable(err: unknown): boolean {
-    if (err instanceof MechRateLimitError) return true
-    if (err instanceof MechTimeoutError) return true
-    if (err instanceof MechNetworkError && err.statusCode && err.statusCode >= 500) return true
+    if (err instanceof ClearAuthRateLimitError) return true
+    if (err instanceof ClearAuthTimeoutError) return true
+    if (err instanceof ClearAuthNetworkError && err.statusCode && err.statusCode >= 500) return true
     return false
   }
 }

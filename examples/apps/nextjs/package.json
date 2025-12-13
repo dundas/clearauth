@@ -1,5 +1,5 @@
 {
-  "name": "lightauth-nextjs-example",
+  "name": "clearauth-nextjs-example",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,7 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "lightauth": "^0.3.0",
+    "clearauth": "file:../../..",
     "next": "14.2.5",
     "react": "18.2.0",
     "react-dom": "18.2.0"

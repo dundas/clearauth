@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import { MechSqlClient } from "../mech-sql-client.js"
-import { MechConfigError, MechNetworkError, MechTimeoutError } from "../errors.js"
+import { ClearAuthConfigError, ClearAuthNetworkError, ClearAuthTimeoutError } from "../errors.js"
 
 describe("MechSqlClient", () => {
   const validUuid = "550e8400-e29b-41d4-a716-446655440000"
@@ -37,7 +37,7 @@ describe("MechSqlClient", () => {
     })
 
     it("should throw if appId is not a valid UUID", () => {
-      expect(() => new MechSqlClient({ ...baseConfig, appId: "not-a-uuid" })).toThrow(MechConfigError)
+      expect(() => new MechSqlClient({ ...baseConfig, appId: "not-a-uuid" })).toThrow(ClearAuthConfigError)
     })
 
     it("should accept config overrides", () => {
@@ -100,7 +100,7 @@ describe("MechSqlClient", () => {
       })
 
       const client = new MechSqlClient({ ...baseConfig, maxRetries: 0 })
-      await expect(client.execute("SELECT *")).rejects.toThrow(MechNetworkError)
+      await expect(client.execute("SELECT *")).rejects.toThrow(ClearAuthNetworkError)
     })
 
     it("should throw on Mech API error", async () => {

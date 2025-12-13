@@ -1,11 +1,11 @@
 # Email/Password Authentication
 
-This document describes the email/password authentication implementation in LightAuth.
+This document describes the email/password authentication implementation in ClearAuth.
 
 ## Overview
 
 The email/password authentication system provides:
-- User registration with password hashing (Argon2id)
+- User registration with password hashing (pluggable)
 - Email verification with secure tokens
 - User login with password verification
 - Password reset flow with time-limited tokens
@@ -15,13 +15,12 @@ The email/password authentication system provides:
 
 ### Password Hashing
 
-Uses **Argon2id** via `@node-rs/argon2` for password hashing:
-- **Algorithm**: Argon2id (hybrid mode - resistant to both side-channel and GPU attacks)
-- **Memory cost**: 19456 KiB (19 MiB)
-- **Time cost**: 2 iterations
-- **Parallelism**: 1 thread
+Password hashing is **pluggable**:
 
-Note: `@node-rs/argon2` is a native dependency and may require a Node runtime. If you need Cloudflare Workers support, consider making Workers deployments OAuth-only or switching to a Workers-compatible password hashing approach.
+- **Default**: PBKDF2 via Web Crypto (portable; works in edge runtimes)
+- **Node.js**: Argon2id via `@node-rs/argon2` when using the Node entrypoint
+
+If you need Cloudflare Workers support, use the edge entrypoint and PBKDF2 (no native dependencies).
 
 ### Token Generation
 
@@ -66,7 +65,7 @@ Registers a new user with email and password.
 
 **Example:**
 ```typescript
-import { registerUser } from 'lightauth'
+import { registerUser } from 'clearauth'
 
 const result = await registerUser(db, 'user@example.com', 'SecurePass123!', {
   ipAddress: '192.168.1.1',
@@ -103,7 +102,7 @@ Verifies a user's email address using a verification token.
 
 **Example:**
 ```typescript
-import { verifyEmail } from 'lightauth'
+import { verifyEmail } from 'clearauth'
 
 const result = await verifyEmail(db, 'abc123...')
 if (result.success) {
@@ -132,7 +131,7 @@ Resends a verification email by generating a new token.
 
 **Example:**
 ```typescript
-import { resendVerificationEmail } from 'lightauth'
+import { resendVerificationEmail } from 'clearauth'
 
 const { token } = await resendVerificationEmail(db, 'user@example.com')
 // Send new verification email to user with token
@@ -164,7 +163,7 @@ Logs in a user with email and password.
 
 **Example:**
 ```typescript
-import { loginUser } from 'lightauth'
+import { loginUser } from 'clearauth'
 
 const result = await loginUser(db, 'user@example.com', 'SecurePass123!', {
   ipAddress: '192.168.1.1',
@@ -188,21 +187,24 @@ Requests a password reset by generating a reset token.
 **Returns:**
 ```typescript
 {
-  token: string
+  success: true,
+  email: string
 }
 ```
 
 **Errors:**
 - `NO_PASSWORD_SET` - Account uses social login only
 
-**Note:** Always returns a token (even for non-existent emails) to prevent email enumeration.
+**Note:** This function does not return the token to prevent email enumeration. Use the optional callback to send the token via email.
 
 **Example:**
 ```typescript
-import { requestPasswordReset } from 'lightauth'
+import { requestPasswordReset } from 'clearauth'
 
-const { token } = await requestPasswordReset(db, 'user@example.com')
-// Send password reset email to user with token
+await requestPasswordReset(db, 'user@example.com', async (email, token) => {
+  // Send password reset email to user with token
+  // sendEmail(email, `Click here to reset: ${baseUrl}/reset?token=${token}`)
+})
 ```
 
 #### `verifyResetToken(db, token)`
@@ -223,7 +225,7 @@ Verifies a password reset token without consuming it.
 
 **Example:**
 ```typescript
-import { verifyResetToken } from 'lightauth'
+import { verifyResetToken } from 'clearauth'
 
 const result = await verifyResetToken(db, 'abc123...')
 if (result.valid) {
@@ -258,7 +260,7 @@ Resets a user's password using a reset token.
 
 **Example:**
 ```typescript
-import { resetPassword } from 'lightauth'
+import { resetPassword } from 'clearauth'
 
 const result = await resetPassword(db, 'abc123...', 'NewSecurePass123!')
 if (result.success) {
@@ -277,7 +279,7 @@ Validates a session and returns the user.
 
 **Example:**
 ```typescript
-import { validateSession } from 'lightauth'
+import { validateSession } from 'clearauth'
 
 const user = await validateSession(db, sessionId)
 if (!user) {
@@ -291,7 +293,7 @@ Deletes a session (logout).
 
 **Example:**
 ```typescript
-import { deleteSession } from 'lightauth'
+import { deleteSession } from 'clearauth'
 
 await deleteSession(db, sessionId)
 ```
@@ -302,7 +304,7 @@ Deletes all sessions for a user (used after password change).
 
 **Example:**
 ```typescript
-import { deleteAllUserSessions } from 'lightauth'
+import { deleteAllUserSessions } from 'clearauth'
 
 await deleteAllUserSessions(db, userId)
 ```
@@ -324,7 +326,7 @@ Main HTTP request handler for email/password authentication.
 
 **Example:**
 ```typescript
-import { handleAuthRequest } from 'lightauth'
+import { handleAuthRequest } from 'clearauth'
 
 const response = await handleAuthRequest(request, {
   database: db,
@@ -515,8 +517,8 @@ Expired tokens should be cleaned up periodically:
 import {
   cleanupExpiredVerificationTokens,
   cleanupExpiredResetTokens
-} from 'lightauth'
-import { cleanupExpiredSessions } from 'lightauth'
+} from 'clearauth'
+import { cleanupExpiredSessions } from 'clearauth'
 
 // Run daily via cron job
 async function cleanupTokens(db: Kysely<Database>) {
@@ -580,7 +582,7 @@ The implementation uses these tables:
 
 ## TypeScript Types
 
-All functions and data structures are fully typed. Import types from `lightauth`:
+All functions and data structures are fully typed. Import types from `clearauth`:
 
 ```typescript
 import type {
@@ -589,8 +591,8 @@ import type {
   EmailVerificationToken,
   PasswordResetToken,
   RequestContext,
-  MechAuthConfig
-} from 'lightauth'
+  ClearAuthConfig
+} from 'clearauth'
 ```
 
 ## Error Codes

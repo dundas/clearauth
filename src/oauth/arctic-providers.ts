@@ -9,12 +9,12 @@
  */
 
 import { GitHub, Google } from 'arctic'
-import type { MechAuthConfig } from '../types.js'
+import type { ClearAuthConfig } from '../types.js'
 
 /**
  * Create GitHub OAuth provider instance
  *
- * @param config - Mech Auth configuration
+ * @param config - ClearAuth configuration
  * @returns Arctic GitHub provider instance
  * @throws Error if GitHub OAuth is not configured
  *
@@ -24,7 +24,7 @@ import type { MechAuthConfig } from '../types.js'
  * const url = await github.createAuthorizationURL(state, { scopes: ['user:email'] })
  * ```
  */
-export function createGitHubProvider(config: MechAuthConfig): GitHub {
+export function createGitHubProvider(config: ClearAuthConfig): GitHub {
   if (!config.oauth?.github) {
     throw new Error('GitHub OAuth is not configured')
   }
@@ -41,7 +41,7 @@ export function createGitHubProvider(config: MechAuthConfig): GitHub {
 /**
  * Create Google OAuth provider instance
  *
- * @param config - Mech Auth configuration
+ * @param config - ClearAuth configuration
  * @returns Arctic Google provider instance
  * @throws Error if Google OAuth is not configured
  *
@@ -51,7 +51,7 @@ export function createGitHubProvider(config: MechAuthConfig): GitHub {
  * const url = await google.createAuthorizationURL(state, codeVerifier, { scopes: ['email', 'profile'] })
  * ```
  */
-export function createGoogleProvider(config: MechAuthConfig): Google {
+export function createGoogleProvider(config: ClearAuthConfig): Google {
   if (!config.oauth?.google) {
     throw new Error('Google OAuth is not configured')
   }
@@ -71,7 +71,7 @@ export function createGoogleProvider(config: MechAuthConfig): Google {
  * Returns a map of provider names to Arctic provider instances.
  * Only includes providers that are configured.
  *
- * @param config - Mech Auth configuration
+ * @param config - ClearAuth configuration
  * @returns Map of provider names to Arctic provider instances
  *
  * @example
@@ -82,7 +82,7 @@ export function createGoogleProvider(config: MechAuthConfig): Google {
  * }
  * ```
  */
-export function getConfiguredProviders(config: MechAuthConfig): {
+export function getConfiguredProviders(config: ClearAuthConfig): {
   github?: GitHub
   google?: Google
 } {

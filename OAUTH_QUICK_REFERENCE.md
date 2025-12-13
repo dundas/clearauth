@@ -3,10 +3,10 @@
 ## Configuration
 
 ```typescript
-import { createMechKysely } from 'lightauth'
-import type { MechAuthConfig } from 'lightauth'
+import { createMechKysely } from 'clearauth'
+import type { ClearAuthConfig } from 'clearauth'
 
-const config: MechAuthConfig = {
+const config: ClearAuthConfig = {
   database: createMechKysely({ appId, apiKey }),
   secret: 'your-secret-key',
   baseUrl: 'https://yourdomain.com',
@@ -39,7 +39,7 @@ const config: MechAuthConfig = {
 ## Cloudflare Worker
 
 ```typescript
-import { handleOAuthRequest } from 'lightauth'
+import { handleOAuthRequest } from 'clearauth'
 
 export default {
   async fetch(request: Request, env: Env) {
@@ -78,7 +78,7 @@ export default {
 ## Session Validation
 
 ```typescript
-import { validateSession, parseCookies } from 'lightauth'
+import { validateSession, parseCookies } from 'clearauth'
 
 const cookies = parseCookies(request.headers.get('Cookie') || '')
 const sessionId = cookies['session']
@@ -92,7 +92,7 @@ if (!user) {
 ## Logout
 
 ```typescript
-import { deleteSession, createDeleteCookieHeader } from 'lightauth'
+import { deleteSession, createDeleteCookieHeader } from 'clearauth'
 
 await deleteSession(db, sessionId)
 
@@ -109,24 +109,12 @@ return new Response(null, {
 
 ```typescript
 // Arctic Providers
-createGitHubProvider(config: MechAuthConfig): GitHub
-createGoogleProvider(config: MechAuthConfig): Google
+createGitHubProvider(config: ClearAuthConfig): GitHub
+createGoogleProvider(config: ClearAuthConfig): Google
 
 // GitHub OAuth
 generateGitHubAuthUrl(config): Promise<{ url, state }>
 handleGitHubCallback(config, code, storedState, returnedState): Promise<OAuthCallbackResult>
-
-// Google OAuth
-generateGoogleAuthUrl(config): Promise<{ url, state, codeVerifier }>
-handleGoogleCallback(config, code, storedState, returnedState, codeVerifier): Promise<OAuthCallbackResult>
-
-// Session Management
-upsertOAuthUser(db, provider, profile): Promise<User>
-createSession(db, userId, expiresInSeconds?, context?): Promise<string>
-validateSession(db, sessionId): Promise<User | null>
-deleteSession(db, sessionId): Promise<void>
-deleteAllUserSessions(db, userId): Promise<void>
-cleanupExpiredSessions(db): Promise<number>
 
 // Cookie Helpers
 parseCookies(cookieHeader: string): Record<string, string>
@@ -134,7 +122,7 @@ createCookieHeader(name, value, options): string
 createDeleteCookieHeader(name, options): string
 
 // HTTP Handler
-handleOAuthRequest(request: Request, config: MechAuthConfig): Promise<Response>
+handleOAuthRequest(request: Request, config: ClearAuthConfig): Promise<Response>
 ```
 
 ## Types

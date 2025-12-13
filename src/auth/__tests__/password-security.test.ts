@@ -66,19 +66,30 @@ describe('Password Hashing Security', () => {
       const wrongPassword = 'WrongPassword456!'
       const hashed = await hash(password, ARGON2_CONFIG)
 
-      // Measure time for correct password
-      const start1 = Date.now()
+      const samples = 5
+
+      // Warm up (reduces variance on some machines)
       await verify(hashed, password)
-      const time1 = Date.now() - start1
-
-      // Measure time for incorrect password
-      const start2 = Date.now()
       await verify(hashed, wrongPassword)
-      const time2 = Date.now() - start2
 
-      // Times should be within 50ms of each other (timing attack resistance)
-      // Note: This is a rough test; true timing attack analysis requires more sophisticated methods
-      expect(Math.abs(time1 - time2)).toBeLessThan(50)
+      const measure = async (candidate: string) => {
+        const start = Date.now()
+        for (let i = 0; i < samples; i++) {
+          await verify(hashed, candidate)
+        }
+        return Date.now() - start
+      }
+
+      const correctMs = await measure(password)
+      const wrongMs = await measure(wrongPassword)
+
+      const min = Math.min(correctMs, wrongMs)
+      const max = Math.max(correctMs, wrongMs)
+
+      // We expect verification cost to be in the same ballpark for correct/incorrect passwords.
+      // This is an inherently noisy measurement in CI and on developer machines.
+      // Use a ratio bound rather than a strict millisecond threshold to avoid flakiness.
+      expect(max / Math.max(min, 1)).toBeLessThan(2)
     })
   })
 

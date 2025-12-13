@@ -1,7 +1,7 @@
 /**
- * React hooks and utilities for LightAuth
+ * React hooks and utilities for ClearAuth
  *
- * This module provides React hooks for authentication with LightAuth.
+ * This module provides React hooks for authentication with ClearAuth.
  * Works with any React framework (Next.js, Vite, Create React App, etc.).
  *
  * @module react
@@ -80,7 +80,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
  *
  * @example
  * ```tsx
- * import { AuthProvider } from 'lightauth/react'
+ * import { AuthProvider } from 'clearauth/react'
  *
  * function App() {
  *   return (

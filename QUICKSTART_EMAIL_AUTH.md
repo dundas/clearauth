@@ -1,11 +1,11 @@
 # Quick Start: Email/Password Authentication
 
-Get started with email/password authentication in LightAuth in 5 minutes.
+Get started with email/password authentication in ClearAuth in 5 minutes.
 
 ## Installation
 
 ```bash
-npm install lightauth
+npm install clearauth
 ```
 
 Dependencies installed automatically:
@@ -19,7 +19,7 @@ Dependencies installed automatically:
 
 ```typescript
 import { Kysely } from 'kysely'
-import type { Database } from 'lightauth'
+import type { Database } from 'clearauth'
 
 // Your database instance (PostgreSQL, MySQL, etc.)
 const db: Kysely<Database> = ... // Your Kysely setup
@@ -28,9 +28,9 @@ const db: Kysely<Database> = ... // Your Kysely setup
 ### 2. Configuration
 
 ```typescript
-import type { MechAuthConfig } from 'lightauth'
+import type { ClearAuthConfig } from 'clearauth'
 
-const config: MechAuthConfig = {
+const config: ClearAuthConfig = {
   database: db,
   secret: process.env.AUTH_SECRET!,
   baseUrl: 'https://your-app.com',
@@ -47,7 +47,7 @@ const config: MechAuthConfig = {
 ### User Registration
 
 ```typescript
-import { registerUser } from 'lightauth'
+import { registerUser } from 'clearauth'
 
 const { user, sessionId, verificationToken } = await registerUser(
   db,
@@ -72,7 +72,7 @@ response.headers.set('Set-Cookie', `sessionId=${sessionId}; HttpOnly; Secure; Sa
 ### Email Verification
 
 ```typescript
-import { verifyEmail } from 'lightauth'
+import { verifyEmail } from 'clearauth'
 
 const { success, userId } = await verifyEmail(db, token)
 
@@ -84,7 +84,7 @@ if (success) {
 ### User Login
 
 ```typescript
-import { loginUser } from 'lightauth'
+import { loginUser } from 'clearauth'
 
 const { user, sessionId } = await loginUser(
   db,
@@ -103,7 +103,7 @@ response.headers.set('Set-Cookie', `sessionId=${sessionId}; HttpOnly; Secure; Sa
 ### Session Validation (Middleware)
 
 ```typescript
-import { validateSession } from 'lightauth'
+import { validateSession } from 'clearauth'
 
 async function requireAuth(sessionId: string) {
   const user = await validateSession(db, sessionId)
@@ -124,7 +124,7 @@ console.log('Authenticated user:', user.email)
 ### Password Reset
 
 ```typescript
-import { requestPasswordReset, resetPassword } from 'lightauth'
+import { requestPasswordReset, resetPassword } from 'clearauth'
 
 // Step 1: User requests reset
 const { token } = await requestPasswordReset(db, 'user@example.com')
@@ -146,7 +146,7 @@ if (success) {
 ### Logout
 
 ```typescript
-import { deleteSession } from 'lightauth'
+import { deleteSession } from 'clearauth'
 
 await deleteSession(db, sessionId)
 
@@ -159,7 +159,7 @@ response.headers.set('Set-Cookie', 'sessionId=; Max-Age=0')
 Use the built-in HTTP handler for a complete REST API:
 
 ```typescript
-import { handleAuthRequest } from 'lightauth'
+import { handleAuthRequest } from 'clearauth'
 
 // In your request handler
 async function handleRequest(request: Request) {
@@ -275,7 +275,7 @@ import {
   cleanupExpiredSessions,
   cleanupExpiredVerificationTokens,
   cleanupExpiredResetTokens
-} from 'lightauth'
+} from 'clearauth'
 
 async function dailyCleanup() {
   const sessions = await cleanupExpiredSessions(db)
@@ -301,9 +301,9 @@ import type {
   EmailVerificationToken,
   PasswordResetToken,
   RequestContext,
-  MechAuthConfig,
+  ClearAuthConfig,
   Database
-} from 'lightauth'
+} from 'clearauth'
 ```
 
 ## Next Steps
@@ -317,8 +317,8 @@ import type {
 
 ## Support
 
-- **GitHub**: https://github.com/dundas/lightauth
-- **Issues**: https://github.com/dundas/lightauth/issues
+- **GitHub**: https://github.com/dundas/clearauth
+- **Issues**: https://github.com/dundas/clearauth/issues
 - **Documentation**: See [EMAIL_PASSWORD_AUTH.md](./docs/EMAIL_PASSWORD_AUTH.md)
 
 ## License

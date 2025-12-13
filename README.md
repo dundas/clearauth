@@ -1,37 +1,37 @@
-# LightAuth
+# ClearAuth
 
 A lightweight authentication library built with **Arctic** (OAuth 2.0), pluggable password hashing, and **Mech Storage** as the database backend. Designed for teams who need production-ready auth with minimal bundle size (~15KB vs 150KB).
 
 ## Features
 
-- ✅ **Arctic OAuth 2.0** - Lightweight OAuth with GitHub, Google support (~10KB)
-- ✅ **Pluggable password hashing** - Argon2id (Node) and PBKDF2 (Edge)
-- ✅ **Email/password authentication** - Built-in email verification and password reset
-- ✅ **Session management** - Secure, database-backed sessions with configurable expiration
-- ✅ **Mech Storage PostgreSQL** as the database (HTTP-based, no direct DB connection needed)
-- ✅ **Cloudflare Workers compatible** - Use `lightauth/edge` for OAuth + email/password without native dependencies
-- ✅ **React hooks** included (`useAuth`, `AuthProvider`)
-- ✅ **TypeScript-first** - Full type safety with Kysely query builder
-- ✅ **Minimal bundle size** - ~15KB (vs 150KB for Better Auth)
+- **Arctic OAuth 2.0** - Lightweight OAuth with GitHub, Google support (~10KB)
+- **Pluggable password hashing** - Argon2id (Node) and PBKDF2 (Edge)
+- **Email/password authentication** - Built-in email verification and password reset
+- **Session management** - Secure, database-backed sessions with configurable expiration
+- **Mech Storage PostgreSQL** as the database (HTTP-based, no direct DB connection needed)
+- **Cloudflare Workers compatible** - Use `clearauth/edge` for OAuth + email/password without native dependencies
+- **React hooks** included (`useAuth`, `AuthProvider`)
+- **TypeScript-first** - Full type safety with Kysely query builder
+- **Minimal bundle size** - ~15KB (vs 150KB for Better Auth)
 
 ## Installation
 
-> **Note:** Install from npm as `lightauth`.
+> **Note:** Install from npm as `clearauth`.
 
 ```bash
-npm install lightauth
+npm install clearauth
 ```
 
 Or using a specific version/tag:
 ```bash
-npm install lightauth
+npm install clearauth
 ```
 
 Or add to `package.json`:
 ```json
 {
   "dependencies": {
-    "lightauth": "^0.3.0",
+    "clearauth": "^0.3.0",
     "arctic": "^2.0.0"
   }
 }
@@ -39,24 +39,24 @@ Or add to `package.json`:
 
 ## Entrypoints
 
-- **`lightauth`**
+- **`clearauth`**
   - **Environment:** universal
   - **Default password hasher:** PBKDF2 (WebCrypto)
-- **`lightauth/node`**
+- **`clearauth/node`**
   - **Environment:** Node.js
   - **Default password hasher:** Argon2id
-  - **API:** `createMechAuthNode(...)`
-- **`lightauth/edge`**
+  - **API:** `createClearAuthNode(...)`
+- **`clearauth/edge`**
   - **Environment:** Cloudflare Workers / edge runtimes
   - **Default password hasher:** PBKDF2 (no native dependencies)
-  - **API:** `createMechAuth(...)`
-- **`lightauth/argon2`**
+  - **API:** `createClearAuth(...)`
+- **`clearauth/argon2`**
   - **Environment:** Node.js
   - **Export:** `createArgon2idPasswordHasher(...)` (use to explicitly override)
 
 ## Migration Notes
 
-- **Password hashing default:** `createMechAuth(...)` defaults to PBKDF2 for portability (works in edge runtimes). If you want Argon2id by default in Node.js, use `createMechAuthNode(...)` from `lightauth/node`.
+- **Password hashing default:** `createClearAuth(...)` defaults to PBKDF2 for portability (works in edge runtimes). If you want Argon2id by default in Node.js, use `createClearAuthNode(...)` from `clearauth/node`.
 - **Cookie-based sessions:** `/auth/register` and `/auth/login` set the session cookie on success. `/auth/logout` supports cookie-based logout. If your client previously stored `sessionId` outside cookies, update it to rely on cookies (recommended) or continue sending an explicit `sessionId` in the logout request body.
 
 ## Quick Start
@@ -66,9 +66,9 @@ Or add to `package.json`:
 Create `lib/auth.ts`:
 
 ```ts
-import { createMechAuthNode } from "lightauth/node"
+import { createClearAuthNode } from "clearauth/node"
 
-export const authConfig = createMechAuthNode({
+export const authConfig = createClearAuthNode({
   secret: process.env.AUTH_SECRET!,
   baseUrl: process.env.BASE_URL || "http://localhost:3000",
   database: {
@@ -90,15 +90,15 @@ export const authConfig = createMechAuthNode({
 Create `app/api/auth/[...path]/route.ts`:
 
 ```ts
-import { handleMechAuthRequest } from "lightauth"
+import { handleClearAuthRequest } from "clearauth"
 import { authConfig } from "@/lib/auth"
 
 export async function GET(request: Request) {
-  return handleMechAuthRequest(request, authConfig)
+  return handleClearAuthRequest(request, authConfig)
 }
 
 export async function POST(request: Request) {
-  return handleMechAuthRequest(request, authConfig)
+  return handleClearAuthRequest(request, authConfig)
 }
 ```
 
@@ -107,10 +107,10 @@ export async function POST(request: Request) {
 Create `src/auth.ts`:
 
 ```ts
-import { createMechAuth, handleMechAuthRequest } from "lightauth/edge"
+import { createClearAuth, handleClearAuthEdgeRequest } from "clearauth/edge"
 
 export function createAuth(env: Env) {
-  return createMechAuth({
+  return createClearAuth({
     secret: env.AUTH_SECRET,
     baseUrl: "https://your-worker.workers.dev",
     database: {
@@ -127,7 +127,7 @@ export default {
 
     if (url.pathname.startsWith("/auth")) {
       const config = createAuth(env)
-      return handleMechAuthRequest(request, config)
+      return handleClearAuthEdgeRequest(request, config)
     }
 
     return new Response("Hello World")
@@ -143,7 +143,7 @@ Wrap your app with `AuthProvider`:
 // app/providers.tsx
 "use client"
 
-import { AuthProvider } from "lightauth/react"
+import { AuthProvider } from "clearauth/react"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -159,7 +159,7 @@ Use in components:
 ```tsx
 "use client"
 
-import { useAuth } from "lightauth/react"
+import { useAuth } from "clearauth/react"
 
 export function LoginButton() {
   const { user, loading, signIn, signOut } = useAuth()
@@ -187,7 +187,7 @@ export function LoginButton() {
 
 ### Required Configuration
 
-All configuration must be passed explicitly to `createMechAuth()`:
+All configuration must be passed explicitly to `createClearAuth()`:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -215,9 +215,9 @@ import {
   defaultSessionConfig,  // 7 days, sameSite: lax
   shortSessionConfig,    // 1 hour, sameSite: strict
   longSessionConfig      // 30 days, sameSite: lax
-} from "lightauth"
+} from "clearauth"
 
-const config = createMechAuth({
+const config = createClearAuth({
   // ...
   session: shortSessionConfig, // Use preset
 })
@@ -250,14 +250,14 @@ BASE_URL = "https://your-worker.workers.dev"
 
 ## API Reference
 
-### `createMechAuth(options)`
+### `createClearAuth(options)`
 
 Creates an authentication configuration object.
 
 ```ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
-const config = createMechAuth({
+const config = createClearAuth({
   secret: process.env.AUTH_SECRET!,
   baseUrl: "https://example.com",
   database: {
@@ -276,21 +276,21 @@ const config = createMechAuth({
 })
 ```
 
-**Returns:** `MechAuthConfig` - Configuration object to pass to `handleMechAuthRequest()`
+**Returns:** `ClearAuthConfig` - Configuration object to pass to `handleClearAuthRequest()`
 
-### `handleMechAuthRequest(request, config)`
+### `handleClearAuthRequest(request, config)`
 
 Universal request handler for all authentication routes.
 
 ```ts
-import { handleMechAuthRequest } from "lightauth"
+import { handleClearAuthRequest } from "clearauth"
 
-const response = await handleMechAuthRequest(request, authConfig)
+const response = await handleClearAuthRequest(request, authConfig)
 ```
 
 **Parameters:**
 - `request: Request` - Web standard Request object
-- `config: MechAuthConfig` - Configuration from `createMechAuth()`
+- `config: ClearAuthConfig` - Configuration from `createClearAuth()`
 
 **Returns:** `Promise<Response>` - Web standard Response object
 
@@ -301,7 +301,7 @@ const response = await handleMechAuthRequest(request, authConfig)
 Wraps your app to provide authentication context.
 
 ```tsx
-import { AuthProvider } from "lightauth/react"
+import { AuthProvider } from "clearauth/react"
 
 <AuthProvider baseUrl="/api/auth">
   {children}
@@ -313,7 +313,7 @@ import { AuthProvider } from "lightauth/react"
 Access authentication state and actions.
 
 ```tsx
-import { useAuth } from "lightauth/react"
+import { useAuth } from "clearauth/react"
 
 const {
   user,              // Current user or null
@@ -330,20 +330,21 @@ const {
 
 ## Authentication Routes
 
-All routes are handled by `handleMechAuthRequest()`:
+All routes are handled by `handleClearAuthRequest()`:
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/auth/signup` | POST | Email/password signup |
+| `/auth/register` | POST | Email/password registration |
 | `/auth/login` | POST | Email/password login |
 | `/auth/logout` | POST | Sign out current user |
 | `/auth/session` | GET | Get current session |
-| `/auth/verify-email` | POST | Request email verification |
-| `/auth/reset-password` | POST | Request password reset |
-| `/auth/reset-password/confirm` | POST | Confirm password reset with token |
-| `/auth/github` | GET | Initiate GitHub OAuth flow |
+| `/auth/verify-email` | POST | Verify email with token |
+| `/auth/resend-verification` | POST | Resend verification email |
+| `/auth/request-reset` | POST | Request password reset |
+| `/auth/reset-password` | POST | Reset password with token |
+| `/auth/oauth/github` | GET | Initiate GitHub OAuth flow |
 | `/auth/callback/github` | GET | GitHub OAuth callback |
-| `/auth/google` | GET | Initiate Google OAuth flow |
+| `/auth/oauth/google` | GET | Initiate Google OAuth flow |
 | `/auth/callback/google` | GET | Google OAuth callback |
 
 ## How It Works
@@ -404,9 +405,9 @@ bun run build
 If migrating from Better Auth:
 
 1. Replace `better-auth` dependency with `arctic`, `@node-rs/argon2`, `oslo`
-2. Update `createMechAuth()` - returns `MechAuthConfig` instead of auth instance
-3. Use `handleMechAuthRequest()` instead of `auth.handler`
-4. Update React imports from `better-auth/react` to `lightauth/react`
+2. Update `createClearAuth()` - returns `ClearAuthConfig` instead of auth instance
+3. Use `handleClearAuthRequest()` instead of `auth.handler`
+4. Update React imports from `better-auth/react` to `clearauth/react`
 5. Update session config - uses new format with `cookie` object
 
 See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for detailed migration steps.

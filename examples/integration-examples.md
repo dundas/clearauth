@@ -1,7 +1,7 @@
-# LightAuth + Better Auth Integration Examples
+# ClearAuth + Better Auth Integration Examples
 
 > **Legacy document:** This file describes an older approach based on Better Auth wrappers and `auth.handler`.
-> The current recommended entrypoint in this repo is the unified handler `handleMechAuthRequest(request, config)`.
+> The current recommended entrypoint in this repo is the unified handler `handleClearAuthRequest(request, config)`.
 > Treat the examples below as historical reference until they are rewritten.
 
 ## Deployment Platform Comparison
@@ -49,13 +49,13 @@ Choose your deployment platform based on your architecture:
 1. Install dependencies in your Next.js app:
 
 ```bash
-npm install lightauth better-auth kysely
+npm install clearauth better-auth kysely
 ```
 
 2. Create `.env.local` and add your credentials:
 
 ```bash
-BETTER_AUTH_SECRET=your-secret-key-at-least-32-chars
+AUTH_SECRET=your-secret-key-at-least-32-chars
 MECH_APP_ID=550e8400-e29b-41d4-a716-446655440000
 MECH_API_KEY=your-mech-api-key
 ```
@@ -63,11 +63,11 @@ MECH_API_KEY=your-mech-api-key
 3. Create `lib/auth.ts`:
 
 ```ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 import { nextCookies } from "better-auth/next-js"
 
-export const auth = createMechAuth({
-  secret: process.env.BETTER_AUTH_SECRET!,
+export const auth = createClearAuth({
+  secret: process.env.AUTH_SECRET!,
   database: {
     appId: process.env.MECH_APP_ID!,
     apiKey: process.env.MECH_API_KEY!,
@@ -92,12 +92,12 @@ import { toNextJsHandler } from "better-auth/next-js"
 export const { GET, POST } = toNextJsHandler(auth.handler)
 ```
 
-5. Use LightAuth React hooks in client components:
+5. Use ClearAuth React hooks in client components:
 
 ```tsx
 "use client"
 
-import { AuthProvider, useAuth } from "lightauth/react"
+import { AuthProvider, useAuth } from "clearauth/react"
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return <AuthProvider baseUrl="/api/auth">{children}</AuthProvider>
@@ -174,19 +174,19 @@ vercel deploy
 1. Install dependencies in your backend:
 
 ```bash
-npm install lightauth better-auth kysely express
+npm install clearauth better-auth kysely express
 ```
 
 And in your Vite app:
 
 ```bash
-npm install lightauth
+npm install clearauth
 ```
 
 2. Create `.env` in your backend directory:
 
 ```bash
-BETTER_AUTH_SECRET=your-secret-key-at-least-32-chars
+AUTH_SECRET=your-secret-key-at-least-32-chars
 MECH_APP_ID=550e8400-e29b-41d4-a716-446655440000
 MECH_API_KEY=your-mech-api-key
 NODE_ENV=development
@@ -195,10 +195,10 @@ NODE_ENV=development
 3. Create `server/auth.ts` in your backend.
 
 ```ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
-export const auth = createMechAuth({
-  secret: process.env.BETTER_AUTH_SECRET!,
+export const auth = createClearAuth({
+  secret: process.env.AUTH_SECRET!,
   database: {
     appId: process.env.MECH_APP_ID!,
     apiKey: process.env.MECH_API_KEY!,
@@ -224,10 +224,10 @@ app.all("/api/auth/*", toNodeHandler(auth))
 app.listen(8000)
 ```
 
-5. Use LightAuth React hooks in your Vite app.
+5. Use ClearAuth React hooks in your Vite app.
 
 ```tsx
-import { AuthProvider } from "lightauth/react"
+import { AuthProvider } from "clearauth/react"
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return <AuthProvider baseUrl="http://localhost:8000/api/auth">{children}</AuthProvider>
@@ -243,13 +243,13 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 1. Install dependencies in your Worker project.
 
 ```bash
-npm install lightauth better-auth kysely
+npm install clearauth better-auth kysely
 ```
 
 2. Configure secrets using Wrangler:
 
 ```bash
-wrangler secret put BETTER_AUTH_SECRET
+wrangler secret put AUTH_SECRET
 wrangler secret put MECH_API_KEY
 ```
 
@@ -267,17 +267,17 @@ MECH_APP_ID = "550e8400-e29b-41d4-a716-446655440000"
 4. Create `src/auth.ts`:
 
 ```ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
 export interface Env {
-  BETTER_AUTH_SECRET: string
+  AUTH_SECRET: string
   MECH_APP_ID: string
   MECH_API_KEY: string
 }
 
 export function createAuth(env: Env) {
-  return createMechAuth({
-    secret: env.BETTER_AUTH_SECRET,
+  return createClearAuth({
+    secret: env.AUTH_SECRET,
     database: {
       appId: env.MECH_APP_ID,
       apiKey: env.MECH_API_KEY,
@@ -332,7 +332,7 @@ wrangler deploy
 
 ```ts
 // In your frontend app
-import { AuthProvider, useAuth } from "lightauth/react"
+import { AuthProvider, useAuth } from "clearauth/react"
 
 export const authClient = {
   baseUrl: "https://my-auth-worker.YOUR_SUBDOMAIN.workers.dev"
@@ -351,22 +351,20 @@ export function UserButton() {
 }
 ```
 
-## Cloudflare Pages Functions (Frontend + Auth)
+## Cloudflare Pages (Frontend + Functions)
 
-> **Use this approach for:** Full-stack apps deployed to Cloudflare Pages (e.g., Vite, React, Vue)
->
-> **⚠️ IMPORTANT ROUTING CAVEAT:** Cloudflare Pages has a [known routing issue](https://community.cloudflare.com/t/functions-index-js-not-accessible-when-a-path-js-route-exists/400706) where catch-all routes `[[...path]].ts` can prevent more specific routes from matching. The workaround is to handle all auth logic within the catch-all handler itself.
+> **Use this approach for:** Frontend apps deployed to Cloudflare Pages that need auth functions
 
 1. Install dependencies:
 
 ```bash
-npm install lightauth better-auth kysely
+npm install clearauth better-auth kysely
 ```
 
 2. Configure secrets using Wrangler:
 
 ```bash
-wrangler secret put BETTER_AUTH_SECRET
+wrangler secret put AUTH_SECRET
 wrangler secret put MECH_API_KEY
 ```
 
@@ -383,10 +381,10 @@ MECH_APP_ID = "550e8400-e29b-41d4-a716-446655440000"
 4. Create `functions/api/auth/[[...all]].ts` (catch-all handler):
 
 ```ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
 interface Env {
-  BETTER_AUTH_SECRET: string
+  AUTH_SECRET: string
   MECH_APP_ID: string
   MECH_API_KEY: string
 }
@@ -395,8 +393,8 @@ export async function onRequest(context: { request: Request; env: Env }) {
   const { request, env } = context
 
   // Create auth instance
-  const auth = createMechAuth({
-    secret: env.BETTER_AUTH_SECRET,
+  const auth = createClearAuth({
+    secret: env.AUTH_SECRET,
     database: {
       appId: env.MECH_APP_ID,
       apiKey: env.MECH_API_KEY,
@@ -415,10 +413,10 @@ export async function onRequest(context: { request: Request; env: Env }) {
 }
 ```
 
-5. Use LightAuth React hooks in your frontend:
+5. Use ClearAuth React hooks in your frontend:
 
 ```tsx
-import { AuthProvider, useAuth } from "lightauth/react"
+import { AuthProvider, useAuth } from "clearauth/react"
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return <AuthProvider baseUrl="/api/auth">{children}</AuthProvider>
@@ -452,10 +450,10 @@ If you need OAuth (GitHub, Google, etc.), you must handle all OAuth routes withi
 
 ```ts
 // functions/api/auth/[[...all]].ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
 interface Env {
-  BETTER_AUTH_SECRET: string
+  AUTH_SECRET: string
   MECH_APP_ID: string
   MECH_API_KEY: string
   GITHUB_CLIENT_ID: string
@@ -466,17 +464,18 @@ export async function onRequest(context: { request: Request; env: Env }) {
   const { request, env } = context
   const url = new URL(request.url)
 
-  const auth = createMechAuth({
-    secret: env.BETTER_AUTH_SECRET,
+  const auth = createClearAuth({
+    secret: env.AUTH_SECRET,
     database: {
       appId: env.MECH_APP_ID,
       apiKey: env.MECH_API_KEY,
     },
     isProduction: true,
-    socialProviders: {
+    oauth: {
       github: {
         clientId: env.GITHUB_CLIENT_ID,
         clientSecret: env.GITHUB_CLIENT_SECRET,
+        redirectUri: `${url.origin}/api/auth/callback/github`,
       },
     },
   })
@@ -488,11 +487,11 @@ export async function onRequest(context: { request: Request; env: Env }) {
 
 ## Required Configuration
 
-**IMPORTANT:** As of version 0.2.0, all configuration must be passed explicitly to `createMechAuth()`. The library does not read environment variables automatically.
+**IMPORTANT:** As of version 0.2.0, all configuration must be passed explicitly to `createClearAuth()`. The library does not read environment variables automatically.
 
 ### Required Parameters
 
-- `secret`: Your Better Auth secret key (minimum 32 characters recommended)
+- `secret`: Your ClearAuth secret key (minimum 32 characters recommended)
 - `database.appId`: Your Mech app UUID
 - `database.apiKey`: Your Mech API key
 - `isProduction`: Set to `true` in production (enables secure cookies)
@@ -501,12 +500,12 @@ export async function onRequest(context: { request: Request; env: Env }) {
 
 While the library doesn't read env vars automatically, you should still use environment variables to store secrets and pass them explicitly:
 
-**Node.js / Next.js (.env.local):**
-```bash
-BETTER_AUTH_SECRET=your-secret-key-at-least-32-chars
+ **Node.js / Next.js (.env.local):**
+ ```bash
+AUTH_SECRET=your-secret-key-at-least-32-chars
 MECH_APP_ID=550e8400-e29b-41d4-a716-446655440000
 MECH_API_KEY=your-mech-api-key
-```
+ ```
 
 **Cloudflare Workers:**
 Use `wrangler secret put` for sensitive values and `wrangler.toml` for public values.

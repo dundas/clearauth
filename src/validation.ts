@@ -1,8 +1,8 @@
 /**
- * Validation utilities for LightAuth
+ * Validation utilities for ClearAuth
  */
 
-import { MechConfigError } from "./errors.js"
+import { ClearAuthConfigError } from "./errors.js"
 
 // UUID regex that also accepts common prefixes like "app_", "user_", etc.
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -15,7 +15,7 @@ export function validateUrl(url: string, fieldName: string = "URL"): void {
   try {
     new URL(url)
   } catch (err) {
-    throw new MechConfigError(`Invalid ${fieldName}: "${url}" is not a valid URL`, {
+    throw new ClearAuthConfigError(`Invalid ${fieldName}: "${url}" is not a valid URL`, {
       fieldName,
       url,
       error: (err as Error).message
@@ -28,7 +28,7 @@ export function validateUrl(url: string, fieldName: string = "URL"): void {
  */
 export function validateUuid(value: string, fieldName: string = "UUID"): void {
   if (!UUID_REGEX.test(value) && !PREFIXED_UUID_REGEX.test(value)) {
-    throw new MechConfigError(`Invalid ${fieldName}: "${value}" is not a valid UUID`, {
+    throw new ClearAuthConfigError(`Invalid ${fieldName}: "${value}" is not a valid UUID`, {
       fieldName,
       value
     })
@@ -40,7 +40,7 @@ export function validateUuid(value: string, fieldName: string = "UUID"): void {
  */
 export function validateNonEmpty(value: string | undefined, fieldName: string): string {
   if (!value || value.trim() === "") {
-    throw new MechConfigError(`${fieldName} is required and cannot be empty`, {
+    throw new ClearAuthConfigError(`${fieldName} is required and cannot be empty`, {
       fieldName,
       value
     })
@@ -53,7 +53,7 @@ export function validateNonEmpty(value: string | undefined, fieldName: string): 
  */
 export function validatePositive(value: number, fieldName: string = "value"): void {
   if (value <= 0) {
-    throw new MechConfigError(`${fieldName} must be positive, got ${value}`, {
+    throw new ClearAuthConfigError(`${fieldName} must be positive, got ${value}`, {
       fieldName,
       value
     })
@@ -65,7 +65,7 @@ export function validatePositive(value: number, fieldName: string = "value"): vo
  */
 export function validateRange(value: number, min: number, max: number, fieldName: string = "value"): void {
   if (value < min || value > max) {
-    throw new MechConfigError(`${fieldName} must be between ${min} and ${max}, got ${value}`, {
+    throw new ClearAuthConfigError(`${fieldName} must be between ${min} and ${max}, got ${value}`, {
       fieldName,
       value,
       min,

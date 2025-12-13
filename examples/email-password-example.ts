@@ -6,7 +6,7 @@
  */
 
 import { Kysely } from 'kysely'
-import type { Database } from 'lightauth'
+import type { Database } from 'clearauth'
 import {
   registerUser,
   loginUser,
@@ -17,7 +17,7 @@ import {
   validateSession,
   deleteSession,
   handleAuthRequest,
-} from 'lightauth'
+} from 'clearauth'
 
 // Example 1: User Registration
 async function exampleRegister(db: Kysely<Database>) {
@@ -89,12 +89,20 @@ async function exampleAuthMiddleware(db: Kysely<Database>, sessionId: string) {
 // Example 5: Password Reset Request
 async function exampleRequestReset(db: Kysely<Database>) {
   try {
-    const result = await requestPasswordReset(db, 'user@example.com')
+    let resetToken: string | undefined
 
-    console.log('Reset token:', result.token)
+    const result = await requestPasswordReset(db, 'user@example.com', async (_email, token) => {
+      resetToken = token
+    })
+
+    console.log('Password reset requested for:', result.email)
+
+    if (resetToken) {
+      console.log('Reset token:', resetToken)
+    }
 
     // Send password reset email
-    // sendEmail(email, `Click here to reset: ${baseUrl}/reset?token=${result.token}`)
+    // sendEmail(email, `Click here to reset: ${baseUrl}/reset?token=${resetToken}`)
   } catch (error: any) {
     console.error('Password reset request failed:', error.message, error.code)
   }
@@ -184,12 +192,18 @@ async function exampleCompletePasswordResetFlow(db: Kysely<Database>) {
 
   // Step 1: User requests password reset
   console.log('\nStep 1: User requests password reset')
-  const resetRequest = await requestPasswordReset(db, 'resetuser@example.com')
-  console.log('✓ Reset token generated:', resetRequest.token.substring(0, 10) + '...')
+  let resetToken: string | undefined
+  const resetRequest = await requestPasswordReset(db, 'resetuser@example.com', async (_email, token) => {
+    resetToken = token
+  })
+  if (!resetToken) {
+    throw new Error(`Reset token was not generated for: ${resetRequest.email}`)
+  }
+  console.log('✓ Reset token generated:', resetToken.substring(0, 10) + '...')
 
   // Step 2: User clicks reset link and submits new password
   console.log('\nStep 2: User resets password')
-  const reset = await resetPassword(db, resetRequest.token, 'NewPass123!')
+  const reset = await resetPassword(db, resetToken, 'NewPass123!')
   console.log('✓ Password reset successful:', reset.success)
   console.log('✓ All sessions invalidated')
 

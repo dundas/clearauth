@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 import { Providers } from './providers'
 
 export const metadata: Metadata = {
-  title: 'LightAuth Next.js Example',
+  title: 'ClearAuth Next.js Example',
 }
 
 export default function RootLayout({

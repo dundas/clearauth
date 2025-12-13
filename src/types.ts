@@ -1,5 +1,5 @@
 /**
- * Type definitions for Mech Auth
+ * Type definitions for ClearAuth
  *
  * Core configuration types and OAuth-related interfaces for the authentication system.
  */
@@ -110,9 +110,9 @@ export interface CorsConfig {
 }
 
 /**
- * Main Mech Auth Configuration
+ * Main ClearAuth Configuration
  */
-export interface MechAuthConfig {
+export interface ClearAuthConfig {
   /**
    * Database instance (Kysely)
    */

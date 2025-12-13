@@ -1,16 +1,16 @@
 /**
- * Factory function to create a complete mech-auth configuration
+ * Factory function to create a complete ClearAuth configuration
  *
- * This module provides a convenient way to create a fully configured MechAuthConfig
+ * This module provides a convenient way to create a fully configured ClearAuthConfig
  * with sensible defaults for session management, cookies, and security settings.
  *
- * @module createMechAuth
+ * @module createClearAuth
  */
 
 import { createMechKysely, type MechKyselyConfig } from "./mech-kysely.js"
-import { MechConfigError } from "./errors.js"
+import { ClearAuthConfigError } from "./errors.js"
 import { getDefaultLogger } from "./logger.js"
-import type { MechAuthConfig } from "./types.js"
+import type { ClearAuthConfig } from "./types.js"
 import { createPbkdf2PasswordHasher } from "./password-hasher.js"
 
 // ============================================================================
@@ -29,7 +29,6 @@ export const defaultSessionConfig = {
     name: 'session',
     httpOnly: true,
     sameSite: 'lax' as const,
-    secure: true,
     path: '/',
   },
 } as const
@@ -45,7 +44,6 @@ export const shortSessionConfig = {
     name: 'session',
     httpOnly: true,
     sameSite: 'strict' as const,
-    secure: true,
     path: '/',
   },
 } as const
@@ -61,7 +59,6 @@ export const longSessionConfig = {
     name: 'session',
     httpOnly: true,
     sameSite: 'lax' as const,
-    secure: true,
     path: '/',
   },
 } as const
@@ -89,7 +86,7 @@ export type SimpleDatabaseConfig = {
   maxRetries?: number
 }
 
-export type CreateMechAuthOptions = {
+export type CreateClearAuthOptions = {
   /** Secret key for session signing (required) */
   secret: string
   /**
@@ -103,13 +100,13 @@ export type CreateMechAuthOptions = {
   /** Set to true if running in production */
   isProduction?: boolean
   /** Session configuration (optional, uses defaults if not provided) */
-  session?: MechAuthConfig['session']
+  session?: ClearAuthConfig['session']
   /** OAuth provider configuration (optional) */
-  oauth?: MechAuthConfig['oauth']
+  oauth?: ClearAuthConfig['oauth']
   /** Password validation configuration (optional) */
-  password?: MechAuthConfig['password']
+  password?: ClearAuthConfig['password']
   /** Password hashing implementation (optional) */
-  passwordHasher?: MechAuthConfig['passwordHasher']
+  passwordHasher?: ClearAuthConfig['passwordHasher']
 }
 
 /**
@@ -120,7 +117,7 @@ function isSimpleDatabaseConfig(db: unknown): db is SimpleDatabaseConfig {
 }
 
 /**
- * Create a complete mech-auth configuration
+ * Create a complete ClearAuth configuration
  *
  * All configuration must be provided explicitly - no environment variables are read.
  *
@@ -128,7 +125,7 @@ function isSimpleDatabaseConfig(db: unknown): db is SimpleDatabaseConfig {
  *
  * 1. **Simplified config (recommended)**:
  *    ```ts
- *    const config = createMechAuth({
+ *    const config = createClearAuth({
  *      secret: "your-secret-key",
  *      baseUrl: "https://yourdomain.com",
  *      database: { appId: "...", apiKey: "..." },
@@ -145,7 +142,7 @@ function isSimpleDatabaseConfig(db: unknown): db is SimpleDatabaseConfig {
  *
  * 2. **With session presets**:
  *    ```ts
- *    const config = createMechAuth({
+ *    const config = createClearAuth({
  *      secret: "your-secret-key",
  *      baseUrl: "https://yourdomain.com",
  *      database: { appId: "...", apiKey: "..." },
@@ -154,14 +151,14 @@ function isSimpleDatabaseConfig(db: unknown): db is SimpleDatabaseConfig {
  *    ```
  *
  * @param options - Configuration options
- * @returns A configured MechAuthConfig object
- * @throws MechConfigError if required config is missing or invalid
+ * @returns A configured ClearAuthConfig object
+ * @throws ClearAuthConfigError if required config is missing or invalid
  *
  * @example Cloudflare Workers setup
  * ```ts
- * import { createMechAuth, defaultSessionConfig } from 'lightauth'
+ * import { createClearAuth, defaultSessionConfig } from 'clearauth'
  *
- * const config = createMechAuth({
+ * const config = createClearAuth({
  *   secret: env.AUTH_SECRET,
  *   baseUrl: 'https://yourdomain.com',
  *   database: {
@@ -182,9 +179,9 @@ function isSimpleDatabaseConfig(db: unknown): db is SimpleDatabaseConfig {
  *
  * @example Next.js setup
  * ```ts
- * import { createMechAuth } from 'lightauth'
+ * import { createClearAuth } from 'clearauth'
  *
- * export const authConfig = createMechAuth({
+ * export const authConfig = createClearAuth({
  *   secret: process.env.AUTH_SECRET!,
  *   baseUrl: process.env.NEXT_PUBLIC_BASE_URL!,
  *   database: {
@@ -201,22 +198,22 @@ function isSimpleDatabaseConfig(db: unknown): db is SimpleDatabaseConfig {
  * })
  * ```
  */
-export function createMechAuth(options: CreateMechAuthOptions): MechAuthConfig {
+export function createClearAuth(options: CreateClearAuthOptions): ClearAuthConfig {
   const logger = getDefaultLogger()
 
   // Validate required fields
   if (!options.secret) {
-    throw new MechConfigError("secret is required", { isProduction: options.isProduction })
+    throw new ClearAuthConfigError("secret is required", { isProduction: options.isProduction })
   }
 
   if (!options.baseUrl) {
-    throw new MechConfigError("baseUrl is required", { isProduction: options.isProduction })
+    throw new ClearAuthConfigError("baseUrl is required", { isProduction: options.isProduction })
   }
 
   // Warn about development defaults
   if (options.secret === "better-auth-secret-123456789" || options.secret === "dev-secret-key") {
     if (options.isProduction) {
-      throw new MechConfigError(
+      throw new ClearAuthConfigError(
         "Cannot use default secret in production",
         { isProduction: options.isProduction }
       )
@@ -243,7 +240,7 @@ export function createMechAuth(options: CreateMechAuthOptions): MechAuthConfig {
     logger.debug("Creating auth config with full database config")
     kyselyConfig = options.database.config
   } else {
-    throw new MechConfigError("Invalid database configuration format", {
+    throw new ClearAuthConfigError("Invalid database configuration format", {
       database: options.database
     })
   }
@@ -254,7 +251,7 @@ export function createMechAuth(options: CreateMechAuthOptions): MechAuthConfig {
     logger.debug("Kysely created successfully")
 
     // Build final config
-    const config: MechAuthConfig = {
+    const config: ClearAuthConfig = {
       database: db,
       secret: options.secret,
       baseUrl: options.baseUrl,
@@ -269,10 +266,10 @@ export function createMechAuth(options: CreateMechAuthOptions): MechAuthConfig {
 
     return config
   } catch (err) {
-    if (err instanceof MechConfigError) {
+    if (err instanceof ClearAuthConfigError) {
       throw err
     }
-    throw new MechConfigError(`Failed to create mech-auth config: ${(err as Error).message}`, {
+    throw new ClearAuthConfigError(`Failed to create ClearAuth config: ${(err as Error).message}`, {
       originalError: (err as Error).message
     })
   }

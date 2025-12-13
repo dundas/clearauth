@@ -1,21 +1,23 @@
-# Deployment Guide: LightAuth
+# Deployment Guide: ClearAuth
+
+> **Legacy document:** This guide contains older Better Auth deployment notes. For the current ClearAuth integration pattern, follow the README and the example apps under `examples/apps/*`.
 
 This guide helps you choose the right deployment platform and understand the specific configuration needed for each.
 
 ## Installation
 
-> **Note:** LightAuth is published to npm as `lightauth`.
+> **Note:** ClearAuth is published to npm as `clearauth`.
 
 ### Install from npm
 
 ```bash
-npm install lightauth better-auth kysely
+npm install clearauth
 ```
 
 ### Install Specific Version
 
 ```bash
-npm install lightauth@0.3.0
+npm install clearauth@0.3.0
 ```
 
 ### Add to package.json
@@ -23,9 +25,7 @@ npm install lightauth@0.3.0
 ```json
 {
   "dependencies": {
-    "lightauth": "^0.3.0",
-    "better-auth": "^0.6.0",
-    "kysely": "^0.27.3"
+    "clearauth": "^0.3.0"
   }
 }
 ```
@@ -67,16 +67,16 @@ npm install
 
 **1. Install dependencies:**
 ```bash
-npm install lightauth better-auth kysely
+npm install clearauth better-auth kysely
 ```
 
 **2. Create `lib/auth.ts`:**
 ```ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 import { nextCookies } from "better-auth/next-js"
 
-export const auth = createMechAuth({
-  secret: process.env.BETTER_AUTH_SECRET!,
+export const auth = createClearAuth({
+  secret: process.env.AUTH_SECRET!,
   database: {
     appId: process.env.MECH_APP_ID!,
     apiKey: process.env.MECH_API_KEY!,
@@ -97,7 +97,7 @@ export const { GET, POST } = toNextJsHandler(auth.handler)
 
 **4. Set environment variables on Vercel:**
 ```bash
-vercel env add BETTER_AUTH_SECRET
+vercel env add AUTH_SECRET
 vercel env add MECH_APP_ID
 vercel env add MECH_API_KEY
 ```
@@ -109,7 +109,7 @@ vercel deploy --prod
 
 #### Common Issues
 - **Cookie not set in server actions:** Make sure you're using the `nextCookies()` plugin
-- **Session not persisting:** Ensure `BETTER_AUTH_SECRET` is set in production
+- **Session not persisting:** Ensure `AUTH_SECRET` is set in production
 - **TypeScript errors:** Import from `"better-auth/next-js"` not `"better-auth"`
 
 ---
@@ -129,22 +129,22 @@ vercel deploy --prod
 
 **1. Install dependencies:**
 ```bash
-npm install lightauth better-auth kysely
+npm install clearauth better-auth kysely
 ```
 
 **2. Create `src/auth.ts`:**
 ```ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
 export interface Env {
-  BETTER_AUTH_SECRET: string
+  AUTH_SECRET: string
   MECH_APP_ID: string
   MECH_API_KEY: string
 }
 
 export function createAuth(env: Env) {
-  return createMechAuth({
-    secret: env.BETTER_AUTH_SECRET,
+  return createClearAuth({
+    secret: env.AUTH_SECRET,
     database: {
       appId: env.MECH_APP_ID,
       apiKey: env.MECH_API_KEY,
@@ -185,7 +185,7 @@ MECH_APP_ID = "550e8400-e29b-41d4-a716-446655440000"
 
 **5. Set secrets:**
 ```bash
-wrangler secret put BETTER_AUTH_SECRET
+wrangler secret put AUTH_SECRET
 wrangler secret put MECH_API_KEY
 ```
 
@@ -220,15 +220,15 @@ wrangler deploy
 
 **1. Install dependencies:**
 ```bash
-npm install lightauth better-auth kysely
+npm install clearauth better-auth kysely
 ```
 
 **2. Create `functions/api/auth/[[...all]].ts`:**
 ```ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
 interface Env {
-  BETTER_AUTH_SECRET: string
+  AUTH_SECRET: string
   MECH_APP_ID: string
   MECH_API_KEY: string
 }
@@ -236,8 +236,8 @@ interface Env {
 export async function onRequest(context: { request: Request; env: Env }) {
   const { request, env } = context
 
-  const auth = createMechAuth({
-    secret: env.BETTER_AUTH_SECRET,
+  const auth = createClearAuth({
+    secret: env.AUTH_SECRET,
     database: {
       appId: env.MECH_APP_ID,
       apiKey: env.MECH_API_KEY,
@@ -264,7 +264,7 @@ MECH_APP_ID = "550e8400-e29b-41d4-a716-446655440000"
 
 **4. Set secrets:**
 ```bash
-wrangler pages secret put BETTER_AUTH_SECRET
+wrangler pages secret put AUTH_SECRET
 wrangler pages secret put MECH_API_KEY
 ```
 
@@ -312,15 +312,15 @@ wrangler pages deploy dist
 
 **1. Install dependencies:**
 ```bash
-npm install lightauth better-auth kysely express
+npm install clearauth better-auth kysely express
 ```
 
 **2. Create `server/auth.ts`:**
 ```ts
-import { createMechAuth } from "lightauth"
+import { createClearAuth } from "clearauth"
 
-export const auth = createMechAuth({
-  secret: process.env.BETTER_AUTH_SECRET!,
+export const auth = createClearAuth({
+  secret: process.env.AUTH_SECRET!,
   database: {
     appId: process.env.MECH_APP_ID!,
     apiKey: process.env.MECH_API_KEY!,
@@ -348,7 +348,7 @@ app.listen(3000, () => {
 
 **4. Set environment variables (`.env`):**
 ```bash
-BETTER_AUTH_SECRET=your-secret-key
+AUTH_SECRET=your-secret-key
 MECH_APP_ID=550e8400-e29b-41d4-a716-446655440000
 MECH_API_KEY=your-mech-api-key
 NODE_ENV=production
@@ -379,7 +379,7 @@ railway up
 All platforms require these secrets:
 
 ```bash
-BETTER_AUTH_SECRET=<generate-with-openssl-rand-base64-32>
+AUTH_SECRET=<generate-with-openssl-rand-base64-32>
 MECH_APP_ID=<your-mech-app-uuid>
 MECH_API_KEY=<your-mech-api-key>
 ```
@@ -401,7 +401,7 @@ MECH_APP_SCHEMA_ID=<your-schema-uuid>
 ### Next.js/Vercel
 
 **Issue:** Session not persisting after deployment
-- ✅ **Solution:** Ensure `BETTER_AUTH_SECRET` is set in Vercel environment variables
+- ✅ **Solution:** Ensure `AUTH_SECRET` is set in Vercel environment variables
 - ✅ **Solution:** Use `nextCookies()` plugin for server actions
 
 **Issue:** `toNextJsHandler is not a function`
@@ -457,7 +457,7 @@ MECH_APP_SCHEMA_ID=<your-schema-uuid>
 **Before:**
 ```ts
 // Library automatically read process.env
-const auth = createMechAuth({
+const auth = createClearAuth({
   emailAndPassword: { enabled: true }
 })
 ```
@@ -465,8 +465,8 @@ const auth = createMechAuth({
 **After:**
 ```ts
 // Must pass config explicitly
-const auth = createMechAuth({
-  secret: process.env.BETTER_AUTH_SECRET!,
+const auth = createClearAuth({
+  secret: process.env.AUTH_SECRET!,
   database: {
     appId: process.env.MECH_APP_ID!,
     apiKey: process.env.MECH_API_KEY!,

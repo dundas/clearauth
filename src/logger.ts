@@ -1,5 +1,5 @@
 /**
- * Logger interface and utilities for LightAuth
+ * Logger interface and utilities for ClearAuth
  */
 
 export type LogLevel = "debug" | "info" | "warn" | "error"
@@ -26,16 +26,16 @@ export const noOpLogger: Logger = {
  */
 export const consoleLogger: Logger = {
   debug: (message, data) => {
-    console.debug(`[lightauth:debug] ${message}`, data)
+    console.debug(`[clearauth:debug] ${message}`, data)
   },
   info: (message, data) => {
-    console.info(`[lightauth:info] ${message}`, data)
+    console.info(`[clearauth:info] ${message}`, data)
   },
   warn: (message, data) => {
-    console.warn(`[lightauth:warn] ${message}`, data)
+    console.warn(`[clearauth:warn] ${message}`, data)
   },
   error: (message, error) => {
-    console.error(`[lightauth:error] ${message}`, error)
+    console.error(`[clearauth:error] ${message}`, error)
   }
 }
 
@@ -44,7 +44,7 @@ export const consoleLogger: Logger = {
  */
 export function getDefaultLogger(): Logger {
   const env = typeof process !== "undefined" ? process.env : undefined
-  if (env?.NODE_ENV === "development" || env?.DEBUG === "lightauth") {
+  if (env?.NODE_ENV === "development" || env?.DEBUG === "clearauth") {
     return consoleLogger
   }
   return noOpLogger
