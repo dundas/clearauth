@@ -49,7 +49,7 @@ Or add to `package.json`:
 - **`clearauth/edge`**
   - **Environment:** Cloudflare Workers / edge runtimes
   - **Default password hasher:** PBKDF2 (no native dependencies)
-  - **API:** `createClearAuth(...)`
+  - **API:** `createClearAuth(...)`, `handleClearAuthEdgeRequest(...)`, `validateSession(...)`, `getSessionFromCookie(...)`, `parseCookies(...)`, `createSessionCookie(...)`, `createMechKysely(...)`
 - **`clearauth/argon2`**
   - **Environment:** Node.js
   - **Export:** `createArgon2idPasswordHasher(...)` (use to explicitly override)
@@ -104,29 +104,25 @@ export async function POST(request: Request) {
 
 ### Cloudflare Workers
 
-Create `src/auth.ts`:
+ClearAuth runs entirely on Cloudflare Workers with no Node.js backend required. See [CLOUDFLARE.md](./CLOUDFLARE.md) for the full guide.
 
 ```ts
 import { createClearAuth, handleClearAuthEdgeRequest } from "clearauth/edge"
-
-export function createAuth(env: Env) {
-  return createClearAuth({
-    secret: env.AUTH_SECRET,
-    baseUrl: "https://your-worker.workers.dev",
-    database: {
-      appId: env.MECH_APP_ID,
-      apiKey: env.MECH_API_KEY,
-    },
-    isProduction: true,
-  })
-}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
     if (url.pathname.startsWith("/auth")) {
-      const config = createAuth(env)
+      const config = createClearAuth({
+        secret: env.AUTH_SECRET,
+        baseUrl: "https://your-worker.workers.dev",
+        database: {
+          appId: env.MECH_APP_ID,
+          apiKey: env.MECH_API_KEY,
+        },
+        isProduction: true,
+      })
       return handleClearAuthEdgeRequest(request, config)
     }
 
@@ -134,6 +130,23 @@ export default {
   }
 }
 ```
+
+#### Session Validation Middleware
+
+```ts
+import { getSessionFromCookie, createMechKysely } from "clearauth/edge"
+
+// In your worker
+const db = createMechKysely({ appId: env.MECH_APP_ID, apiKey: env.MECH_API_KEY })
+const session = await getSessionFromCookie(request, db)
+
+if (!session) {
+  return new Response("Unauthorized", { status: 401 })
+}
+// session.user.email, session.user.id, etc.
+```
+
+See [`examples/cloudflare-workers/`](./examples/cloudflare-workers/) for a complete example.
 
 ### React Client
 
