@@ -9,8 +9,6 @@
   },
   "dependencies": {
     "clearauth": "file:../..",
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "ioredis": "^5.8.2"
+    "express": "^4.19.2"
   }
 }
