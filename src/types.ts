@@ -44,6 +44,8 @@ export interface SessionConfig {
     httpOnly?: boolean
     secure?: boolean
     path?: string
+    /** Cookie domain for cross-subdomain sharing (e.g., '.example.com') */
+    domain?: string
   }
 }
 

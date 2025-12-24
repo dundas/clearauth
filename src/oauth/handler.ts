@@ -171,6 +171,7 @@ async function handleGitHubCallbackRequest(
       secure: config.session?.cookie?.secure ?? config.isProduction ?? true,
       sameSite: config.session?.cookie?.sameSite ?? 'lax',
       path: config.session?.cookie?.path ?? '/',
+      domain: config.session?.cookie?.domain,
       maxAge: expiresInSeconds,
     })
 

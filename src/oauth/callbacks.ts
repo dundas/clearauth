@@ -296,6 +296,7 @@ export function createCookieHeader(
     secure?: boolean
     sameSite?: 'strict' | 'lax' | 'none'
     path?: string
+    domain?: string
     maxAge?: number
     expires?: Date
   } = {}
@@ -316,6 +317,10 @@ export function createCookieHeader(
 
   if (options.path) {
     parts.push(`Path=${options.path}`)
+  }
+
+  if (options.domain) {
+    parts.push(`Domain=${options.domain}`)
   }
 
   if (options.maxAge !== undefined) {
@@ -344,6 +349,7 @@ export function createDeleteCookieHeader(
   name: string,
   options: {
     path?: string
+    domain?: string
   } = {}
 ): string {
   return createCookieHeader(name, '', {

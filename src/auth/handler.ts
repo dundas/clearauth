@@ -148,6 +148,7 @@ async function handleRegister(request: Request, config: ClearAuthConfig): Promis
     secure: config.session?.cookie?.secure ?? config.isProduction ?? true,
     sameSite: config.session?.cookie?.sameSite ?? 'lax',
     path: config.session?.cookie?.path ?? '/',
+    domain: config.session?.cookie?.domain,
     maxAge: expiresInSeconds,
   })
 
@@ -270,6 +271,7 @@ async function handleLogin(request: Request, config: ClearAuthConfig): Promise<R
     secure: config.session?.cookie?.secure ?? config.isProduction ?? true,
     sameSite: config.session?.cookie?.sameSite ?? 'lax',
     path: config.session?.cookie?.path ?? '/',
+    domain: config.session?.cookie?.domain,
     maxAge: expiresInSeconds,
   })
 
@@ -333,12 +335,13 @@ async function handleLogout(request: Request, config: ClearAuthConfig): Promise<
 
   const cookieName = config.session?.cookie?.name || 'session'
   const cookiePath = config.session?.cookie?.path ?? '/'
+  const cookieDomain = config.session?.cookie?.domain
 
   if (sessionId) {
     await deleteSession(config.database, sessionId)
   }
 
-  const deleteSessionCookie = createDeleteCookieHeader(cookieName, { path: cookiePath })
+  const deleteSessionCookie = createDeleteCookieHeader(cookieName, { path: cookiePath, domain: cookieDomain })
   return new Response(JSON.stringify({ success: true }), {
     status: 200,
     headers: {
