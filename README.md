@@ -148,9 +148,7 @@ if (!session) {
 
 See [`examples/cloudflare-workers/`](./examples/cloudflare-workers/) for a complete example.
 
-### Express API with API Keys
-
-For Node.js/Express APIs that need both session auth (web UI) and API key auth (CLI/programmatic access):
+### Express API
 
 ```ts
 import express from 'express';
@@ -158,51 +156,38 @@ import { handleClearAuthRequest, validateSession, parseCookies } from 'clearauth
 import { createClearAuthNode } from 'clearauth/node';
 
 const app = express();
-
-// Initialize ClearAuth
-const authConfig = createClearAuthNode({
+const auth = createClearAuthNode({
   secret: process.env.AUTH_SECRET,
   baseUrl: process.env.BASE_URL,
   database: { appId: process.env.MECH_APP_ID, apiKey: process.env.MECH_API_KEY },
 });
 
-// Auth routes
+// Mount ClearAuth routes
 app.all('/api/auth/*', async (req, res) => {
   const request = new Request(`${req.protocol}://${req.get('host')}${req.originalUrl}`, {
     method: req.method,
     headers: new Headers(req.headers),
     body: req.method !== 'GET' ? JSON.stringify(req.body) : undefined,
   });
-  const response = await handleClearAuthRequest(request, authConfig);
+  const response = await handleClearAuthRequest(request, auth);
   res.status(response.status).send(await response.text());
 });
 
-// Auth middleware supporting both sessions and API keys
-const authMiddleware = async (req, res, next) => {
-  // Check API key first (for CLI)
-  const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
-  if (token) {
-    const user = await validateApiKey(token); // Your API key validation
-    if (user) { req.user = user; return next(); }
-  }
-
-  // Fall back to session cookie (for web UI)
+// Auth middleware
+async function requireAuth(req, res, next) {
   const cookies = parseCookies(req.headers.cookie || '');
   const sessionId = cookies.get('session');
   if (sessionId) {
-    const result = await validateSession(sessionId, authConfig.database);
+    const result = await validateSession(sessionId, auth.database);
     if (result) { req.user = result.user; return next(); }
   }
-
   res.status(401).json({ error: 'Unauthorized' });
-};
+}
 
-app.get('/api/me', authMiddleware, (req, res) => {
-  res.json({ user: req.user });
-});
+app.get('/api/me', requireAuth, (req, res) => res.json({ user: req.user }));
 ```
 
-See [`examples/express-api/`](./examples/express-api/) for a complete example with API key management.
+See [`examples/express-api/`](./examples/express-api/) for a complete example.
 
 ### React Client
 
