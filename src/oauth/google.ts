@@ -90,7 +90,15 @@ export async function handleGoogleCallback(
   // Exchange authorization code for access token (with PKCE)
   const tokens = await google.validateAuthorizationCode(code, codeVerifier)
   const accessToken = tokens.accessToken()
-  const refreshToken = tokens.refreshToken()
+
+  // Try to get refresh token (Google only provides it on first auth or with access_type=offline)
+  let refreshToken: string | undefined = undefined
+  try {
+    refreshToken = tokens.refreshToken()
+  } catch {
+    // Refresh token not provided - this is expected for web apps without offline access
+    console.log('Google OAuth: No refresh token provided (not needed for session-based auth)')
+  }
 
   // Fetch user profile from Google API
   const profile = await fetchGoogleUserProfile(accessToken)
