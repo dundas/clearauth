@@ -245,7 +245,7 @@ export function AuthProvider({
         setError(null)
         await authFetch('/reset-password', {
           method: 'POST',
-          body: JSON.stringify({ token, newPassword }),
+          body: JSON.stringify({ token, password: newPassword }),
         })
       } catch (err) {
         setError((err as Error).message)

@@ -415,13 +415,16 @@ async function handleRequestReset(request: Request, config: ClearAuthConfig): Pr
  */
 async function handleResetPassword(request: Request, config: ClearAuthConfig): Promise<Response> {
   const body = await parseJsonBody(request)
-  const { token, password } = body
+  const { token, password, newPassword } = body
+  // Backward compatibility: Accept both 'password' (canonical) and 'newPassword' (deprecated)
+  // TODO: Remove 'newPassword' support in v2.0.0
+  const resolvedPassword = password ?? newPassword
 
-  if (!token || !password) {
+  if (!token || !resolvedPassword) {
     throw new AuthError('Token and password are required', 'MISSING_FIELDS', 400)
   }
 
-  const result = await resetPassword(config.database, token, password, config.passwordHasher)
+  const result = await resetPassword(config.database, token, resolvedPassword, config.passwordHasher)
   return jsonResponse(result)
 }
 
