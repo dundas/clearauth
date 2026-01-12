@@ -103,13 +103,15 @@ class TursoDriver implements Driver {
         })
         this.logger.debug("Turso client created and cached")
       } catch (error: any) {
-        if (error.code === 'MODULE_NOT_FOUND') {
+        if (error.code === 'MODULE_NOT_FOUND' || error.message?.includes('Cannot find module')) {
           throw new Error(
             'Turso driver not installed. Run: npm install @libsql/client\n' +
             'See: https://github.com/tursodatabase/libsql-client-ts'
           )
         }
-        throw new Error(`Failed to create Turso client: ${error.message}`)
+        // Sanitize error message to avoid exposing auth tokens
+        const sanitizedMessage = error.message?.replace(/authToken[=:]\s*[^\s&]+/gi, 'authToken=***')
+        throw new Error(`Failed to create Turso client: ${sanitizedMessage}`)
       }
     }
     return this.client

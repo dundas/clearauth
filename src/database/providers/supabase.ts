@@ -97,13 +97,15 @@ class SupabaseDriver implements Driver {
         })
         this.logger.debug("Supabase client created and cached")
       } catch (error: any) {
-        if (error.code === 'MODULE_NOT_FOUND') {
+        if (error.code === 'MODULE_NOT_FOUND' || error.message?.includes('Cannot find module')) {
           throw new Error(
             'Postgres driver not installed. Run: npm install postgres\n' +
             'See: https://github.com/porsager/postgres'
           )
         }
-        throw new Error(`Failed to create Supabase client: ${error.message}`)
+        // Sanitize error message to avoid exposing connection strings
+        const sanitizedMessage = error.message?.replace(/postgresql:\/\/[^\s]+/g, 'postgresql://***:***@***')
+        throw new Error(`Failed to create Supabase client: ${sanitizedMessage}`)
       }
     }
     return this.sql

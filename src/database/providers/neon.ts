@@ -61,13 +61,15 @@ class NeonDatabaseConnection implements DatabaseConnection {
         const { neon } = await import("@neondatabase/serverless")
         this.sql = neon(this.connectionString)
       } catch (error: any) {
-        if (error.code === 'MODULE_NOT_FOUND') {
+        if (error.code === 'MODULE_NOT_FOUND' || error.message?.includes('Cannot find module')) {
           throw new Error(
             'Neon driver not installed. Run: npm install @neondatabase/serverless\n' +
             'See: https://github.com/neondatabase/serverless-driver'
           )
         }
-        throw new Error(`Failed to create Neon client: ${error.message}`)
+        // Sanitize error message to avoid exposing connection strings
+        const sanitizedMessage = error.message?.replace(/postgresql:\/\/[^\s]+/g, 'postgresql://***:***@***')
+        throw new Error(`Failed to create Neon client: ${sanitizedMessage}`)
       }
     }
     return this.sql
@@ -88,7 +90,9 @@ class NeonDatabaseConnection implements DatabaseConnection {
         rows: result.rows as R[]
       } as QueryResult<R>
     } catch (error: any) {
-      throw new Error(`Failed to execute Neon query: ${error.message}`)
+      // Sanitize error message to avoid exposing sensitive data
+      const sanitizedMessage = error.message?.replace(/postgresql:\/\/[^\s]+/g, 'postgresql://***:***@***')
+      throw new Error(`Failed to execute Neon query: ${sanitizedMessage}`)
     }
   }
 

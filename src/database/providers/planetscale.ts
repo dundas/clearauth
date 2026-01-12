@@ -105,13 +105,15 @@ class PlanetScaleDriver implements Driver {
         })
         this.logger.debug("PlanetScale connection created and cached")
       } catch (error: any) {
-        if (error.code === 'MODULE_NOT_FOUND') {
+        if (error.code === 'MODULE_NOT_FOUND' || error.message?.includes('Cannot find module')) {
           throw new Error(
             'PlanetScale driver not installed. Run: npm install @planetscale/database\n' +
             'See: https://github.com/planetscale/database-js'
           )
         }
-        throw new Error(`Failed to create PlanetScale connection: ${error.message}`)
+        // Sanitize error message to avoid exposing credentials
+        const sanitizedMessage = error.message?.replace(/password[=:]\s*[^\s&]+/gi, 'password=***')
+        throw new Error(`Failed to create PlanetScale connection: ${sanitizedMessage}`)
       }
     }
     return this.connection
