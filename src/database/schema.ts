@@ -26,11 +26,11 @@ export interface UsersTable {
   // OAuth provider IDs
   github_id: string | null
   google_id: string | null
-  discord_id?: string | null
-  apple_id?: string | null
-  microsoft_id?: string | null
-  linkedin_id?: string | null
-  meta_id?: string | null
+  discord_id: string | null
+  apple_id: string | null
+  microsoft_id: string | null
+  linkedin_id: string | null
+  meta_id: string | null
 
   // User profile
   name: string | null

@@ -53,6 +53,10 @@ export async function handleLinkedInCallback(
 
   const user: LinkedInUser = await response.json()
 
+  if (!user.email_verified) {
+    throw new Error('LinkedIn account must have a verified email')
+  }
+
   const profile: OAuthUserProfile = {
     id: user.sub,
     email: user.email,

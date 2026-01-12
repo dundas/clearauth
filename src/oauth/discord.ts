@@ -20,9 +20,7 @@ export async function generateDiscordAuthUrl(config: ClearAuthConfig): Promise<{
 }> {
   const discord = createDiscordProvider(config)
   const state = generateState()
-  const url = discord.createAuthorizationURL(state, {
-    scopes: ['identify', 'email']
-  })
+  const url = discord.createAuthorizationURL(state, null, ['identify', 'email'])
   return { url, state }
 }
 
@@ -37,7 +35,7 @@ export async function handleDiscordCallback(
   }
 
   const discord = createDiscordProvider(config)
-  const tokens = await discord.validateAuthorizationCode(code)
+  const tokens = await discord.validateAuthorizationCode(code, null)
   const accessToken = tokens.accessToken()
 
   const response = await fetch('https://discord.com/api/users/@me', {

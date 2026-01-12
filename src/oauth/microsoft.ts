@@ -49,8 +49,8 @@ export async function handleMicrosoftCallback(
     email_verified: true // Microsoft verified the email if it's in the token
   }
 
-  if (!profile.email) {
-    throw new Error('Microsoft account must have an email address')
+  if (!profile.email || !profile.email.includes('@')) {
+    throw new Error('Microsoft account must have a valid email address')
   }
 
   return { 

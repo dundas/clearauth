@@ -13,7 +13,6 @@ export async function generateAppleAuthUrl(config: ClearAuthConfig): Promise<{
 }> {
   const apple = createAppleProvider(config)
   const state = generateState()
-  // Apple requires specific response_mode for some flows, Arctic handles defaults
   const url = apple.createAuthorizationURL(state, ['name', 'email'])
   return { url, state }
 }

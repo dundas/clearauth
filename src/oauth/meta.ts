@@ -3,21 +3,14 @@
  */
 
 import { generateState } from 'arctic'
-import { Facebook } from 'arctic'
 import type { ClearAuthConfig, OAuthUserProfile, OAuthCallbackResult } from '../types.js'
+import { createMetaProvider } from './arctic-providers.js'
 
-export function createMetaProvider(config: ClearAuthConfig): Facebook {
-  if (!config.oauth?.meta) {
-    throw new Error('Meta OAuth is not configured')
-  }
-  const { clientId, clientSecret, redirectUri } = config.oauth.meta
-  return new Facebook(clientId, clientSecret, redirectUri)
-}
-
-interface MetaUser {
+  interface MetaUser {
   id: string
   name: string
   email?: string
+  email_verified?: boolean
   picture?: {
     data: {
       url: string
@@ -49,7 +42,7 @@ export async function handleMetaCallback(
   const tokens = await meta.validateAuthorizationCode(code)
   const accessToken = tokens.accessToken()
 
-  const response = await fetch('https://graph.facebook.com/me?fields=id,name,email,picture', {
+  const response = await fetch('https://graph.facebook.com/me?fields=id,name,email,email_verified,picture', {
     headers: {
       Authorization: `Bearer ${accessToken}`
     }
@@ -70,7 +63,7 @@ export async function handleMetaCallback(
     email: user.email,
     name: user.name,
     avatar_url: user.picture?.data.url || null,
-    email_verified: true // Meta verifies email
+    email_verified: user.email_verified ?? false
   }
 
   return { profile, accessToken }
