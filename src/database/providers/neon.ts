@@ -95,11 +95,21 @@ class NeonDriver implements Driver {
     return new NeonDatabaseConnection(this.connectionString, this.logger)
   }
 
-  async beginTransaction(_connection: DatabaseConnection, _settings: TransactionSettings): Promise<void> {}
+  async beginTransaction(_connection: DatabaseConnection, _settings: TransactionSettings): Promise<void> {
+    throw new Error(
+      'Transactions are not supported by the Neon adapter. ' +
+      'ClearAuth does not currently use transactions, so this should not affect functionality. ' +
+      'If you need transaction support, please open an issue at https://github.com/dundas/clearauth/issues'
+    )
+  }
 
-  async commitTransaction(_connection: DatabaseConnection): Promise<void> {}
+  async commitTransaction(_connection: DatabaseConnection): Promise<void> {
+    throw new Error('Transactions are not supported by the Neon adapter')
+  }
 
-  async rollbackTransaction(_connection: DatabaseConnection): Promise<void> {}
+  async rollbackTransaction(_connection: DatabaseConnection): Promise<void> {
+    throw new Error('Transactions are not supported by the Neon adapter')
+  }
 
   async releaseConnection(_connection: DatabaseConnection): Promise<void> {}
 

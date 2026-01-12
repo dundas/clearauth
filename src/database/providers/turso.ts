@@ -115,11 +115,21 @@ class TursoDriver implements Driver {
     return new TursoDatabaseConnection(this.url, this.authToken, this.logger)
   }
 
-  async beginTransaction(_connection: DatabaseConnection, _settings: TransactionSettings): Promise<void> {}
+  async beginTransaction(_connection: DatabaseConnection, _settings: TransactionSettings): Promise<void> {
+    throw new Error(
+      'Transactions are not supported by the Turso adapter. ' +
+      'ClearAuth does not currently use transactions, so this should not affect functionality. ' +
+      'If you need transaction support, please open an issue at https://github.com/dundas/clearauth/issues'
+    )
+  }
 
-  async commitTransaction(_connection: DatabaseConnection): Promise<void> {}
+  async commitTransaction(_connection: DatabaseConnection): Promise<void> {
+    throw new Error('Transactions are not supported by the Turso adapter')
+  }
 
-  async rollbackTransaction(_connection: DatabaseConnection): Promise<void> {}
+  async rollbackTransaction(_connection: DatabaseConnection): Promise<void> {
+    throw new Error('Transactions are not supported by the Turso adapter')
+  }
 
   async releaseConnection(_connection: DatabaseConnection): Promise<void> {}
 

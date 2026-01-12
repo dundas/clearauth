@@ -115,11 +115,21 @@ class PlanetScaleDriver implements Driver {
     return new PlanetScaleDatabaseConnection(this.config, this.logger)
   }
 
-  async beginTransaction(_connection: DatabaseConnection, _settings: TransactionSettings): Promise<void> {}
+  async beginTransaction(_connection: DatabaseConnection, _settings: TransactionSettings): Promise<void> {
+    throw new Error(
+      'Transactions are not supported by the PlanetScale adapter. ' +
+      'ClearAuth does not currently use transactions, so this should not affect functionality. ' +
+      'If you need transaction support, please open an issue at https://github.com/dundas/clearauth/issues'
+    )
+  }
 
-  async commitTransaction(_connection: DatabaseConnection): Promise<void> {}
+  async commitTransaction(_connection: DatabaseConnection): Promise<void> {
+    throw new Error('Transactions are not supported by the PlanetScale adapter')
+  }
 
-  async rollbackTransaction(_connection: DatabaseConnection): Promise<void> {}
+  async rollbackTransaction(_connection: DatabaseConnection): Promise<void> {
+    throw new Error('Transactions are not supported by the PlanetScale adapter')
+  }
 
   async releaseConnection(_connection: DatabaseConnection): Promise<void> {}
 
