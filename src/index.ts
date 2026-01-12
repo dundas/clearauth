@@ -24,6 +24,13 @@ export * from "./auth/login.js"
 export * from "./auth/reset-password.js"
 export * from "./auth/handler.js"
 
+// Email helpers and providers
+export * from "./email/manager.js"
+export * from "./email/templates.js"
+export * from "./email/providers/resend.js"
+export * from "./email/providers/postmark.js"
+export * from "./email/providers/sendgrid.js"
+
 export * from "./password-hasher.js"
 
 // Unified handler (recommended entry point)

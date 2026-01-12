@@ -25,6 +25,7 @@ import {
 } from '../oauth/callbacks.js'
 import { AuthError, isValidReturnTo } from './utils.js'
 import { toPublicUser } from '../database/schema.js'
+import { EmailManager } from '../email/manager.js'
 
 /**
  * Parse JSON request body
@@ -179,6 +180,18 @@ async function handleRegister(request: Request, config: ClearAuthConfig): Promis
   const result = await registerUser(config.database, email, password, context, config.passwordHasher)
   const publicResult = toPublicRegisterResult(result)
 
+  // Send verification email if required
+  if (config.emailPassword?.requireEmailVerification) {
+    const emailManager = new EmailManager(config)
+    const verificationUrl = `/auth/verify-email?token=${result.verificationToken}`
+    try {
+      await emailManager.sendVerificationEmail(email, result.verificationToken, verificationUrl)
+    } catch (error) {
+      console.error('[ClearAuth] Failed to send verification email:', error)
+      // Don't fail registration if email sending fails
+    }
+  }
+
   const cookieName = config.session?.cookie?.name ?? 'session'
   const expiresInSeconds = config.session?.expiresIn ?? 2592000
   const sessionCookie = createCookieHeader(cookieName, result.sessionId, {
@@ -259,6 +272,17 @@ async function handleResendVerification(request: Request, config: ClearAuthConfi
   }
 
   const result = await resendVerificationEmail(config.database, email)
+  
+  // Send the new verification email
+  const emailManager = new EmailManager(config)
+  const verificationUrl = `/auth/verify-email?token=${result.token}`
+  try {
+    await emailManager.sendVerificationEmail(email, result.token, verificationUrl)
+  } catch (error) {
+    console.error('[ClearAuth] Failed to send verification email:', error)
+    // Don't fail the request if email sending fails
+  }
+
   return jsonResponse(result)
 }
 
@@ -420,9 +444,16 @@ async function handleRequestReset(request: Request, config: ClearAuthConfig): Pr
     throw new AuthError('Email is required', 'MISSING_EMAIL', 400)
   }
 
-  // Note: onTokenGenerated callback should be provided by config for email sending
-  // For now, we just store the token - users need to implement email sending
-  await requestPasswordReset(config.database, email)
+  const emailManager = new EmailManager(config)
+  await requestPasswordReset(config.database, email, async (resolvedEmail, token) => {
+    const resetUrl = `/auth/reset-password?token=${token}`
+    try {
+      await emailManager.sendPasswordResetEmail(resolvedEmail, token, resetUrl)
+    } catch (error) {
+      console.error('[ClearAuth] Failed to send password reset email:', error)
+      // Don't fail the request if email sending fails
+    }
+  })
 
   // Always return success to prevent email enumeration
   return jsonResponse({
@@ -503,8 +534,16 @@ async function handleRequestMagicLink(request: Request, config: ClearAuthConfig)
     throw new AuthError('Invalid returnTo URL', 'INVALID_RETURN_TO', 400)
   }
 
-  // Pass email callback from config
-  await requestMagicLink(config.database, email, returnTo, config.email?.sendMagicLink)
+  const emailManager = new EmailManager(config)
+  await requestMagicLink(config.database, email, returnTo, async (resolvedEmail, token, linkUrl) => {
+    // linkUrl is relative and already includes returnTo encoding when provided
+    try {
+      await emailManager.sendMagicLink(resolvedEmail, token, linkUrl)
+    } catch (error) {
+      console.error('[ClearAuth] Failed to send magic link email:', error)
+      // Don't fail the request if email sending fails
+    }
+  })
 
   // Always return success to prevent email enumeration
   return jsonResponse({

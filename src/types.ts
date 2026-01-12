@@ -69,6 +69,43 @@ export interface PasswordConfig {
 }
 
 /**
+ * Email Provider Interface
+ *
+ * Interface for email service adapters (Resend, Postmark, etc.)
+ */
+export interface EmailProvider {
+  /** Provider name */
+  name: string
+
+  /**
+   * Send an email
+   * @param to - Recipient email address
+   * @param subject - Email subject
+   * @param html - HTML content
+   * @param text - Plain text content
+   */
+  send: (to: string, subject: string, html: string, text: string) => Promise<void>
+}
+
+/**
+ * Email Configuration
+ */
+export interface EmailConfig extends EmailCallbacksConfig {
+  /**
+   * Email provider adapter
+   * If provided, ClearAuth will use this to send emails automatically
+   * using default templates, unless specific callbacks are provided.
+   */
+  provider?: EmailProvider
+
+  /**
+   * Default 'from' address for emails
+   * Required if using a provider
+   */
+  from?: string
+}
+
+/**
  * Email Callbacks Configuration
  *
  * Optional callbacks for sending emails. Implement these to send emails
@@ -188,9 +225,9 @@ export interface ClearAuthConfig {
   passwordHasher?: PasswordHasher
 
   /**
-   * Email callbacks for sending verification, reset, and magic link emails
+   * Email configuration for sending verification, reset, and magic link emails
    */
-  email?: EmailCallbacksConfig
+  email?: EmailConfig
 
   /**
    * CORS configuration for browser clients

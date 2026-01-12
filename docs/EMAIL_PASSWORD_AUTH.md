@@ -11,6 +11,39 @@ The email/password authentication system provides:
 - Password reset flow with time-limited tokens
 - Secure session management
 
+## Email Sending
+
+ClearAuth supports two ways to send emails:
+
+1. **Callbacks (most flexible)**
+   - Provide `config.email.sendVerificationEmail`, `config.email.sendPasswordResetEmail`, and/or `config.email.sendMagicLink`.
+   - You control the provider and templates.
+
+2. **Built-in provider adapters (quick start)**
+   - Provide `config.email.provider` with a supported provider adapter and ClearAuth will send emails using default templates.
+   - Supported adapters:
+     - `ResendProvider`
+     - `PostmarkProvider`
+     - `SendGridProvider`
+
+### Provider Example (Resend)
+
+```ts
+import { createClearAuthNode, ResendProvider } from 'clearauth'
+
+const auth = createClearAuthNode({
+  secret: process.env.AUTH_SECRET!,
+  baseUrl: process.env.BASE_URL!,
+  database: db,
+  email: {
+    provider: new ResendProvider({
+      apiKey: process.env.RESEND_API_KEY!,
+      from: 'Your App <no-reply@yourdomain.com>',
+    }),
+  },
+})
+```
+
 ## Architecture
 
 ### Password Hashing
@@ -436,7 +469,8 @@ return response
 **Response (200):**
 ```json
 {
-  "token": "reset_token"
+  "success": true,
+  "message": "If your email is registered, you will receive a password reset link."
 }
 ```
 
@@ -483,7 +517,7 @@ return response
 ### Email Enumeration Prevention
 
 1. **Generic error messages**: "Invalid email or password" instead of "User not found"
-2. **Consistent timing**: Password reset returns token even for non-existent emails
+2. **Consistent behavior**: Password reset always returns a generic success response and never returns a token
 3. **No user existence revelation**: Resend verification returns generic success
 
 ### Error Handling
