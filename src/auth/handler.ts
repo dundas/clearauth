@@ -29,15 +29,52 @@ import { toPublicUser } from '../database/schema.js'
 /**
  * Parse JSON request body
  *
+ * This implementation uses request.text() + JSON.parse() instead of request.json()
+ * to ensure compatibility with Cloudflare Pages Functions and other edge runtimes
+ * where the request body stream may be consumed or locked.
+ *
  * @param request - HTTP request
  * @returns Parsed JSON body
+ * @throws {AuthError} If body is empty, already consumed, or contains invalid JSON
  * @internal
  */
 async function parseJsonBody(request: Request): Promise<any> {
   try {
-    return await request.json()
+    // Check if body has already been consumed
+    if (request.bodyUsed) {
+      throw new AuthError('Request body has already been consumed', 'BODY_CONSUMED', 400)
+    }
+
+    // Read body as text first (more reliable across different runtimes)
+    const bodyText = await request.text()
+
+    // Check if body is empty
+    if (!bodyText || !bodyText.trim()) {
+      throw new AuthError('Request body is empty', 'EMPTY_BODY', 400)
+    }
+
+    // Parse JSON manually with better error messages
+    try {
+      return JSON.parse(bodyText)
+    } catch (parseError) {
+      throw new AuthError(
+        `Invalid JSON in request body: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+        'INVALID_JSON',
+        400
+      )
+    }
   } catch (error) {
-    throw new AuthError('Invalid JSON body', 'INVALID_JSON', 400)
+    // If it's already an AuthError, re-throw it
+    if (error instanceof AuthError) {
+      throw error
+    }
+
+    // Handle other errors (e.g., network issues, stream errors)
+    throw new AuthError(
+      `Failed to read request body: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      'BODY_READ_ERROR',
+      400
+    )
   }
 }
 

@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Cloudflare Pages Functions Compatibility** - Fixed request body parsing for edge runtimes
+  - Changed from `request.json()` to `request.text()` + `JSON.parse()` approach
+  - Resolves "Invalid JSON body" errors in Cloudflare Pages Functions
+  - Better error messages for empty bodies, consumed streams, and malformed JSON
+  - Added comprehensive test coverage (14 tests) for various body types and edge cases
+  - Compatible with ReadableStream, Uint8Array, and standard string bodies
+  - Fixes issue where POST requests (register, login, etc.) would fail in Cloudflare Pages Functions
+
 - Fixed password reset payload mismatch between React client and server handler
   - Server now accepts both `password` (canonical) and `newPassword` (deprecated) fields for backward compatibility
   - React client updated to send `password` field to match server contract
