@@ -27,7 +27,7 @@ describe('D1 Database Provider', () => {
   describe('createD1Kysely', () => {
     it('should create a Kysely instance with valid D1 database', () => {
       const mockDb = createMockD1Database()
-      const db = createD1Kysely(mockDb)
+      const db = createD1Kysely({ database: mockDb })
 
       expect(db).toBeDefined()
       expect(typeof db.selectFrom).toBe('function')
@@ -42,7 +42,7 @@ describe('D1 Database Provider', () => {
       }
 
       const mockDb = createMockD1Database()
-      const db = createD1Kysely(mockDb, mockLogger)
+      const db = createD1Kysely({ database: mockDb, logger: mockLogger })
 
       expect(db).toBeDefined()
       expect(mockLogger.debug).toHaveBeenCalled()
@@ -52,7 +52,7 @@ describe('D1 Database Provider', () => {
   describe('Error Handling', () => {
     it('should handle query failures', () => {
       const mockDb = createMockD1Database()
-      const db = createD1Kysely(mockDb)
+      const db = createD1Kysely({ database: mockDb })
       
       expect(db).toBeDefined()
     })
@@ -61,7 +61,7 @@ describe('D1 Database Provider', () => {
   describe('Transaction Support', () => {
     it('should throw error when transaction is attempted', async () => {
       const mockDb = createMockD1Database()
-      const db = createD1Kysely(mockDb)
+      const db = createD1Kysely({ database: mockDb })
       
       await expect(async () => {
         await db.transaction().execute(async (trx) => {

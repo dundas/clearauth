@@ -98,7 +98,8 @@ class D1DatabaseConnection implements DatabaseConnection {
     const result = await boundStmt.all()
 
     if (!result.success) {
-      throw new Error("D1 query failed")
+      const queryPreview = compiledQuery.sql.substring(0, 100)
+      throw new Error(`D1 query failed: ${queryPreview}${compiledQuery.sql.length > 100 ? '...' : ''}`)
     }
 
     return {
@@ -178,8 +179,7 @@ class D1SqliteDialect implements Dialect {
 /**
  * Create a Kysely instance configured for Cloudflare D1
  *
- * @param database - D1 database binding from Cloudflare Workers environment
- * @param logger - Optional custom logger
+ * @param config - D1 configuration
  * @returns Kysely instance
  *
  * @example
@@ -187,17 +187,17 @@ class D1SqliteDialect implements Dialect {
  * // In your Cloudflare Worker
  * export default {
  *   async fetch(request: Request, env: Env): Promise<Response> {
- *     const db = createD1Kysely(env.DB)
+ *     const db = createD1Kysely({ database: env.DB })
  *     // Use db with ClearAuth...
  *   }
  * }
  * ```
  */
-export function createD1Kysely(database: D1Database, logger?: Logger): Kysely<any> {
-  const log = logger ?? getDefaultLogger()
-  log.debug("Creating Kysely instance with D1SqliteDialect")
-  const dialect = new D1SqliteDialect({ database, logger: log })
+export function createD1Kysely(config: D1KyselyConfig): Kysely<any> {
+  const logger = config.logger ?? getDefaultLogger()
+  logger.debug("Creating Kysely instance with D1SqliteDialect")
+  const dialect = new D1SqliteDialect(config)
   const db = new Kysely({ dialect })
-  log.debug("Kysely instance created for D1")
+  logger.debug("Kysely instance created for D1")
   return db
 }
