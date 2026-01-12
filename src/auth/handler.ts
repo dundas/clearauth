@@ -416,6 +416,8 @@ async function handleRequestReset(request: Request, config: ClearAuthConfig): Pr
 async function handleResetPassword(request: Request, config: ClearAuthConfig): Promise<Response> {
   const body = await parseJsonBody(request)
   const { token, password, newPassword } = body
+  // Backward compatibility: Accept both 'password' (canonical) and 'newPassword' (deprecated)
+  // TODO: Remove 'newPassword' support in v2.0.0
   const resolvedPassword = password ?? newPassword
 
   if (!token || !resolvedPassword) {
