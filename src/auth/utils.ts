@@ -140,3 +140,44 @@ export function createAuthError(
 ): AuthError {
   return new AuthError(message, code, statusCode)
 }
+
+/**
+ * Validate returnTo URL for magic links and redirects
+ *
+ * Ensures the returnTo URL is safe to redirect to (same-origin only).
+ * Prevents open redirect vulnerabilities.
+ *
+ * @param returnTo - URL to validate
+ * @param baseUrl - Base URL of the application
+ * @returns True if valid and safe, false otherwise
+ *
+ * @example
+ * ```ts
+ * isValidReturnTo('/dashboard', 'https://example.com') // true
+ * isValidReturnTo('https://example.com/profile', 'https://example.com') // true
+ * isValidReturnTo('https://evil.com', 'https://example.com') // false
+ * ```
+ */
+export function isValidReturnTo(returnTo: string | null | undefined, baseUrl: string): boolean {
+  if (!returnTo) {
+    return false
+  }
+
+  try {
+    // Handle relative URLs
+    if (returnTo.startsWith('/')) {
+      // Relative URLs are safe (same-origin by definition)
+      return true
+    }
+
+    // Parse absolute URLs
+    const returnToUrl = new URL(returnTo)
+    const base = new URL(baseUrl)
+
+    // Only allow same-origin redirects
+    return returnToUrl.origin === base.origin
+  } catch {
+    // Invalid URL
+    return false
+  }
+}

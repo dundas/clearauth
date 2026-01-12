@@ -44,6 +44,8 @@ export interface AuthActions {
   verifyEmail: (token: string) => Promise<void>
   /** Resend email verification */
   resendVerification: (email: string) => Promise<void>
+  /** Request magic link for passwordless login */
+  requestMagicLink: (email: string, returnTo?: string) => Promise<void>
   /** Refresh session to get latest user data */
   refresh: () => Promise<void>
 }
@@ -289,6 +291,23 @@ export function AuthProvider({
     [authFetch]
   )
 
+  // Magic link
+  const requestMagicLink = useCallback(
+    async (email: string, returnTo?: string) => {
+      try {
+        setError(null)
+        await authFetch('/request-magic-link', {
+          method: 'POST',
+          body: JSON.stringify({ email, returnTo }),
+        })
+      } catch (err) {
+        setError((err as Error).message)
+        throw err
+      }
+    },
+    [authFetch]
+  )
+
   const value: AuthContextValue = {
     user,
     loading,
@@ -302,6 +321,7 @@ export function AuthProvider({
     resetPassword,
     verifyEmail,
     resendVerification,
+    requestMagicLink,
     refresh,
   }
 

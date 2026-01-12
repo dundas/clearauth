@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Magic Link Authentication** - Passwordless login via email
+  - `POST /auth/request-magic-link` - Request magic link for existing users
+  - `GET /auth/magic-link/verify` - Verify magic link and redirect with session cookie
+  - Login-only flow (existing users only, prevents signup spam)
+  - 15-minute token expiration for security
+  - One-time use tokens (deleted after consumption)
+  - Email enumeration prevention (always returns success)
+  - Automatic email verification on successful login
+  - `returnTo` redirect support with same-origin validation
+  - React `requestMagicLink(email, returnTo?)` action
+  - Comprehensive test coverage (19 tests)
+  - Database schema: `magic_link_tokens` table
+
 ### Fixed
 
 - Fixed password reset payload mismatch between React client and server handler
