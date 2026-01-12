@@ -26,6 +26,9 @@ pscale connect clearauth-db main
 # In another terminal, run migrations
 mysql -h 127.0.0.1 -P 3306 -u root < 001_create_users_table.sql
 mysql -h 127.0.0.1 -P 3306 -u root < 002_create_sessions_table.sql
+mysql -h 127.0.0.1 -P 3306 -u root < 003_create_verification_tokens.sql
+mysql -h 127.0.0.1 -P 3306 -u root < 004_create_reset_tokens.sql
+mysql -h 127.0.0.1 -P 3306 -u root < 005_create_magic_link_tokens.sql
 ```
 
 Or use the PlanetScale web console to execute the SQL directly.

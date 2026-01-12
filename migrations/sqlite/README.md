@@ -25,6 +25,9 @@ turso db create clearauth-db
 # Run migrations
 turso db shell clearauth-db < 001_create_users_table.sql
 turso db shell clearauth-db < 002_create_sessions_table.sql
+turso db shell clearauth-db < 003_create_verification_tokens.sql
+turso db shell clearauth-db < 004_create_reset_tokens.sql
+turso db shell clearauth-db < 005_create_magic_link_tokens.sql
 ```
 
 ### Cloudflare D1
@@ -35,6 +38,9 @@ wrangler d1 create clearauth-db
 # Run migrations
 wrangler d1 execute clearauth-db --file=./migrations/sqlite/001_create_users_table.sql
 wrangler d1 execute clearauth-db --file=./migrations/sqlite/002_create_sessions_table.sql
+wrangler d1 execute clearauth-db --file=./migrations/sqlite/003_create_verification_tokens.sql
+wrangler d1 execute clearauth-db --file=./migrations/sqlite/004_create_reset_tokens.sql
+wrangler d1 execute clearauth-db --file=./migrations/sqlite/005_create_magic_link_tokens.sql
 ```
 
 ## Application Code Changes
