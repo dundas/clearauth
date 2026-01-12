@@ -68,10 +68,26 @@
     "test:coverage": "vitest --coverage"
   },
   "peerDependencies": {
-    "react": ">=18"
+    "react": ">=18",
+    "@neondatabase/serverless": "^0.10.0",
+    "@libsql/client": "^0.14.0",
+    "@planetscale/database": "^1.19.0",
+    "postgres": "^3.4.0"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "@neondatabase/serverless": {
+      "optional": true
+    },
+    "@libsql/client": {
+      "optional": true
+    },
+    "@planetscale/database": {
+      "optional": true
+    },
+    "postgres": {
       "optional": true
     }
   },
