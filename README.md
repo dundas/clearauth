@@ -260,6 +260,39 @@ All configuration must be passed explicitly to `createClearAuth()`:
 | `password` | `PasswordConfig` | Password validation rules (minLength) |
 | `cors` | `CorsConfig` | CORS configuration for browser clients |
 
+### Email Providers (Verification / Reset / Magic Link)
+
+ClearAuth supports two approaches:
+
+1. **Callbacks** via `config.email.sendVerificationEmail`, `config.email.sendPasswordResetEmail`, `config.email.sendMagicLink`.
+2. **Built-in provider adapters** via `config.email.provider` (default templates).
+
+Supported built-in provider adapters:
+- `ResendProvider`
+- `PostmarkProvider`
+- `SendGridProvider`
+
+Example (Resend):
+
+```ts
+import { createClearAuthNode, ResendProvider } from "clearauth"
+
+const auth = createClearAuthNode({
+  secret: process.env.AUTH_SECRET!,
+  baseUrl: process.env.BASE_URL!,
+  database: {
+    appId: process.env.MECH_APP_ID!,
+    apiKey: process.env.MECH_API_KEY!,
+  },
+  email: {
+    provider: new ResendProvider({
+      apiKey: process.env.RESEND_API_KEY!,
+      from: "Your App <no-reply@yourdomain.com>",
+    }),
+  },
+})
+```
+
 ### Session Presets
 
 Three session configurations are available:
