@@ -69,6 +69,38 @@ export interface PasswordConfig {
 }
 
 /**
+ * Email Callbacks Configuration
+ *
+ * Optional callbacks for sending emails. Implement these to send emails
+ * for verification, password reset, and magic links.
+ */
+export interface EmailCallbacksConfig {
+  /**
+   * Send email verification link
+   * @param email - User's email address
+   * @param token - Verification token
+   * @param linkUrl - Relative URL path for verification (e.g., /auth/verify-email?token=...)
+   */
+  sendVerificationEmail?: (email: string, token: string, linkUrl: string) => Promise<void>
+
+  /**
+   * Send password reset link
+   * @param email - User's email address
+   * @param token - Reset token
+   * @param linkUrl - Relative URL path for reset (e.g., /auth/reset-password?token=...)
+   */
+  sendPasswordResetEmail?: (email: string, token: string, linkUrl: string) => Promise<void>
+
+  /**
+   * Send magic link for passwordless login
+   * @param email - User's email address
+   * @param token - Magic link token
+   * @param linkUrl - Relative URL path for magic link (e.g., /auth/magic-link/verify?token=...)
+   */
+  sendMagicLink?: (email: string, token: string, linkUrl: string) => Promise<void>
+}
+
+/**
  * CORS Configuration
  */
 export interface CorsConfig {
@@ -154,6 +186,11 @@ export interface ClearAuthConfig {
    * Password hashing implementation
    */
   passwordHasher?: PasswordHasher
+
+  /**
+   * Email callbacks for sending verification, reset, and magic link emails
+   */
+  email?: EmailCallbacksConfig
 
   /**
    * CORS configuration for browser clients

@@ -4,10 +4,13 @@
  * Tests for magic link request, consumption, and security features
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { requestMagicLink, consumeMagicLink, cleanupExpiredMagicLinkTokens } from '../magic-link.js'
 import type { Kysely } from 'kysely'
 import type { Database } from '../../database/schema.js'
+
+// Fixed timestamp for deterministic testing
+const FIXED_TIME = new Date('2026-01-12T12:00:00Z')
 
 // Mock database
 const createMockDb = () => {
@@ -29,6 +32,17 @@ const createMockDb = () => {
 }
 
 describe('Magic Link Authentication', () => {
+  beforeEach(() => {
+    // Use fake timers for deterministic date testing
+    vi.useFakeTimers()
+    vi.setSystemTime(FIXED_TIME)
+  })
+
+  afterEach(() => {
+    // Restore real timers after each test
+    vi.useRealTimers()
+  })
+
   describe('requestMagicLink()', () => {
     it('should return success for existing user', async () => {
       const db = createMockDb()
@@ -162,14 +176,14 @@ describe('Magic Link Authentication', () => {
     const userId = 'user-123'
 
     const setupValidTokenMocks = (db: Kysely<Database>) => {
-      // Mock token lookup - valid token
+      // Mock token lookup - valid token (expires 15 minutes from FIXED_TIME)
       vi.mocked(db.selectFrom('magic_link_tokens').selectAll().where('token', '=', validToken).executeTakeFirst).mockResolvedValue({
         token: validToken,
         user_id: userId,
         email: 'user@example.com',
         return_to: '/dashboard',
-        expires_at: new Date(Date.now() + 900000), // 15 minutes from now
-        created_at: new Date(),
+        expires_at: new Date(FIXED_TIME.getTime() + 900000), // 15 minutes from FIXED_TIME
+        created_at: FIXED_TIME,
       })
 
       // Mock user lookup
@@ -182,8 +196,8 @@ describe('Magic Link Authentication', () => {
         google_id: null,
         name: null,
         avatar_url: null,
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: FIXED_TIME,
+        updated_at: FIXED_TIME,
       })
 
       // Mock delete token
@@ -248,14 +262,14 @@ describe('Magic Link Authentication', () => {
       const mockDb = createMockDb()
       const expiredToken = 'expired-token'
 
-      // Mock: Token exists but is expired
+      // Mock: Token exists but is expired (15 minutes before FIXED_TIME)
       vi.mocked(mockDb.selectFrom('magic_link_tokens').selectAll().where('token', '=', expiredToken).executeTakeFirst).mockResolvedValue({
         token: expiredToken,
         user_id: userId,
         email: 'user@example.com',
         return_to: null,
-        expires_at: new Date(Date.now() - 900000), // 15 minutes ago (expired)
-        created_at: new Date(Date.now() - 1800000),
+        expires_at: new Date(FIXED_TIME.getTime() - 900000), // 15 minutes before FIXED_TIME (expired)
+        created_at: new Date(FIXED_TIME.getTime() - 1800000), // 30 minutes before FIXED_TIME
       })
 
       // Mock delete expired token
@@ -275,14 +289,14 @@ describe('Magic Link Authentication', () => {
       const mockDb = createMockDb()
       const orphanedToken = 'orphaned-token'
 
-      // Mock: Token exists
+      // Mock: Token exists (valid, not expired)
       vi.mocked(mockDb.selectFrom('magic_link_tokens').selectAll().where('token', '=', orphanedToken).executeTakeFirst).mockResolvedValue({
         token: orphanedToken,
         user_id: 'non-existent-user',
         email: 'user@example.com',
         return_to: null,
-        expires_at: new Date(Date.now() + 900000),
-        created_at: new Date(),
+        expires_at: new Date(FIXED_TIME.getTime() + 900000), // 15 minutes from FIXED_TIME
+        created_at: FIXED_TIME,
       })
 
       // Mock: User doesn't exist
@@ -305,8 +319,8 @@ describe('Magic Link Authentication', () => {
         user_id: userId,
         email: 'user@example.com',
         return_to: '/dashboard',
-        expires_at: new Date(Date.now() + 900000),
-        created_at: new Date(),
+        expires_at: new Date(FIXED_TIME.getTime() + 900000),
+        created_at: FIXED_TIME,
       })
 
       // Mock user with email already verified
@@ -319,8 +333,8 @@ describe('Magic Link Authentication', () => {
         google_id: null,
         name: null,
         avatar_url: null,
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: FIXED_TIME,
+        updated_at: FIXED_TIME,
       })
 
       // Mock delete token
@@ -357,8 +371,8 @@ describe('Magic Link Authentication', () => {
         user_id: userId,
         email: 'user@example.com',
         return_to: null,
-        expires_at: new Date(Date.now() + 900000),
-        created_at: new Date(),
+        expires_at: new Date(FIXED_TIME.getTime() + 900000),
+        created_at: FIXED_TIME,
       })
 
       // Mock user lookup
@@ -371,8 +385,8 @@ describe('Magic Link Authentication', () => {
         google_id: null,
         name: null,
         avatar_url: null,
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: FIXED_TIME,
+        updated_at: FIXED_TIME,
       })
 
       // Mock delete token

@@ -466,8 +466,8 @@ async function handleRequestMagicLink(request: Request, config: ClearAuthConfig)
     throw new AuthError('Invalid returnTo URL', 'INVALID_RETURN_TO', 400)
   }
 
-  // Note: onTokenGenerated callback should be provided by config for email sending
-  await requestMagicLink(config.database, email, returnTo)
+  // Pass email callback from config
+  await requestMagicLink(config.database, email, returnTo, config.email?.sendMagicLink)
 
   // Always return success to prevent email enumeration
   return jsonResponse({
