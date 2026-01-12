@@ -15,6 +15,7 @@ import { registerUser, toPublicRegisterResult } from './register.js'
 import { verifyEmail, resendVerificationEmail } from './verify-email.js'
 import { loginUser, toPublicLoginResult } from './login.js'
 import { requestPasswordReset, resetPassword } from './reset-password.js'
+import { requestMagicLink, consumeMagicLink } from './magic-link.js'
 import {
   deleteSession,
   validateSession,
@@ -22,7 +23,7 @@ import {
   createDeleteCookieHeader,
   createCookieHeader,
 } from '../oauth/callbacks.js'
-import { AuthError } from './utils.js'
+import { AuthError, isValidReturnTo } from './utils.js'
 import { toPublicUser } from '../database/schema.js'
 
 /**
@@ -429,6 +430,107 @@ async function handleResetPassword(request: Request, config: ClearAuthConfig): P
 }
 
 /**
+ * Handle POST /auth/request-magic-link
+ *
+ * Request a magic link for passwordless login.
+ *
+ * **Security Note:** This endpoint always returns success, even if the email doesn't exist.
+ * This prevents email enumeration attacks.
+ *
+ * Request body:
+ * ```json
+ * {
+ *   "email": "user@example.com",
+ *   "returnTo": "/dashboard"
+ * }
+ * ```
+ *
+ * Response (always):
+ * ```json
+ * {
+ *   "success": true,
+ *   "message": "If your email is registered, you will receive a magic link to sign in."
+ * }
+ * ```
+ */
+async function handleRequestMagicLink(request: Request, config: ClearAuthConfig): Promise<Response> {
+  const body = await parseJsonBody(request)
+  const { email, returnTo } = body
+
+  if (!email) {
+    throw new AuthError('Email is required', 'MISSING_EMAIL', 400)
+  }
+
+  // Validate returnTo if provided
+  if (returnTo && !isValidReturnTo(returnTo, config.baseUrl)) {
+    throw new AuthError('Invalid returnTo URL', 'INVALID_RETURN_TO', 400)
+  }
+
+  // Pass email callback from config
+  await requestMagicLink(config.database, email, returnTo, config.email?.sendMagicLink)
+
+  // Always return success to prevent email enumeration
+  return jsonResponse({
+    success: true,
+    message: 'If your email is registered, you will receive a magic link to sign in.',
+  })
+}
+
+/**
+ * Handle GET /auth/magic-link/verify
+ *
+ * Verify magic link token and log user in with HTTP redirect.
+ *
+ * Query parameters:
+ * - token: Magic link token (required)
+ * - returnTo: URL to redirect to after login (optional)
+ *
+ * Success: 302 redirect to returnTo (or default)
+ * Error: 400/404 with JSON error
+ */
+async function handleVerifyMagicLink(request: Request, config: ClearAuthConfig): Promise<Response> {
+  const url = new URL(request.url)
+  const token = url.searchParams.get('token')
+  const returnTo = url.searchParams.get('returnTo')
+
+  if (!token) {
+    throw new AuthError('Magic link token is required', 'MISSING_TOKEN', 400)
+  }
+
+  const context = getRequestContext(request)
+  const result = await consumeMagicLink(config.database, token, context)
+
+  // Determine redirect URL
+  let redirectUrl = '/'
+  if (returnTo && isValidReturnTo(returnTo, config.baseUrl)) {
+    redirectUrl = returnTo
+  } else if (result.returnTo && isValidReturnTo(result.returnTo, config.baseUrl)) {
+    redirectUrl = result.returnTo
+  }
+
+  // Create session cookie
+  const cookieName = config.session?.cookie?.name ?? 'session'
+  const expiresInSeconds = config.session?.expiresIn ?? 2592000
+  const sessionCookie = createCookieHeader(cookieName, result.sessionId, {
+    httpOnly: config.session?.cookie?.httpOnly ?? true,
+    secure: config.session?.cookie?.secure ?? config.isProduction ?? true,
+    sameSite: config.session?.cookie?.sameSite ?? 'lax',
+    path: config.session?.cookie?.path ?? '/',
+    domain: config.session?.cookie?.domain,
+    maxAge: expiresInSeconds,
+  })
+
+  // HTTP 302 redirect with session cookie
+  return new Response(null, {
+    status: 302,
+    headers: {
+      'Location': redirectUrl,
+      'Set-Cookie': sessionCookie,
+    },
+  })
+}
+
+/**
  * Handle GET /auth/session
  *
  * Get current session/user from cookie.
@@ -485,6 +587,7 @@ async function handleSession(request: Request, config: ClearAuthConfig): Promise
  *
  * Supported routes:
  * - GET  /auth/session - Get current user session
+ * - GET  /auth/magic-link/verify - Verify magic link and redirect
  * - POST /auth/register - Register new user
  * - POST /auth/verify-email - Verify email with token
  * - POST /auth/resend-verification - Resend verification email
@@ -492,6 +595,7 @@ async function handleSession(request: Request, config: ClearAuthConfig): Promise
  * - POST /auth/logout - Logout user
  * - POST /auth/request-reset - Request password reset
  * - POST /auth/reset-password - Reset password with token
+ * - POST /auth/request-magic-link - Request magic link for passwordless login
  *
  * @param request - HTTP request
  * @param config - Clear Auth configuration
@@ -511,9 +615,15 @@ export async function handleAuthRequest(
     const url = new URL(request.url)
     const path = url.pathname.startsWith('/api/auth') ? url.pathname.replace(/^\/api/, '') : url.pathname
 
-    // Handle GET /auth/session
-    if (request.method === 'GET' && path === '/auth/session') {
-      return await handleSession(request, config)
+    // Handle GET requests
+    if (request.method === 'GET') {
+      if (path === '/auth/session') {
+        return await handleSession(request, config)
+      }
+      if (path === '/auth/magic-link/verify') {
+        return await handleVerifyMagicLink(request, config)
+      }
+      return jsonResponse({ error: 'Not found' }, 404)
     }
 
     // Only handle POST requests for other routes
@@ -543,6 +653,9 @@ export async function handleAuthRequest(
 
       case '/auth/reset-password':
         return await handleResetPassword(request, config)
+
+      case '/auth/request-magic-link':
+        return await handleRequestMagicLink(request, config)
 
       default:
         return jsonResponse({ error: 'Not found' }, 404)
