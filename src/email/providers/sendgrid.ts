@@ -52,8 +52,14 @@ export class SendGridProvider implements EmailProvider {
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`SendGrid error: ${JSON.stringify(error)}`)
+      let errorMessage: string
+      try {
+        const error = await response.json()
+        errorMessage = JSON.stringify(error)
+      } catch {
+        errorMessage = await response.text()
+      }
+      throw new Error(`SendGrid error (${response.status}): ${errorMessage}`)
     }
   }
 }

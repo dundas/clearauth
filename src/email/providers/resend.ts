@@ -37,8 +37,14 @@ export class ResendProvider implements EmailProvider {
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Resend error: ${JSON.stringify(error)}`)
+      let errorMessage: string
+      try {
+        const error = await response.json()
+        errorMessage = JSON.stringify(error)
+      } catch {
+        errorMessage = await response.text()
+      }
+      throw new Error(`Resend error (${response.status}): ${errorMessage}`)
     }
   }
 }

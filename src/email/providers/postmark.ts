@@ -39,8 +39,14 @@ export class PostmarkProvider implements EmailProvider {
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Postmark error: ${JSON.stringify(error)}`)
+      let errorMessage: string
+      try {
+        const error = await response.json()
+        errorMessage = JSON.stringify(error)
+      } catch {
+        errorMessage = await response.text()
+      }
+      throw new Error(`Postmark error (${response.status}): ${errorMessage}`)
     }
   }
 }
