@@ -45,29 +45,16 @@ export type SupabaseKyselyConfig = {
  * @internal
  */
 class SupabaseDatabaseConnection implements DatabaseConnection {
-  private readonly connectionString: string
+  private readonly sql: any
   private readonly logger: Logger
-  private client: any = null
 
-  constructor(connectionString: string, logger: Logger) {
-    this.connectionString = connectionString
+  constructor(sql: any, logger: Logger) {
+    this.sql = sql
     this.logger = logger
   }
 
-  private async getClient() {
-    if (!this.client) {
-      // Dynamically import postgres.js for edge compatibility
-      const postgres = (await import("postgres")).default
-      this.client = postgres(this.connectionString, {
-        prepare: false, // Required for transaction pooler
-        max: 1 // Single connection for edge environments
-      })
-    }
-    return this.client
-  }
-
   async executeQuery<R>(compiledQuery: CompiledQuery): Promise<QueryResult<R>> {
-    const sql = await this.getClient()
+    const sql = this.sql
 
     this.logger.debug("Executing Supabase query", {
       sqlLength: compiledQuery.sql.length,
@@ -91,6 +78,7 @@ class SupabaseDatabaseConnection implements DatabaseConnection {
 class SupabaseDriver implements Driver {
   private readonly connectionString: string
   private readonly logger: Logger
+  private sql: any = null
 
   constructor(config: SupabaseKyselyConfig) {
     this.connectionString = config.connectionString
@@ -98,12 +86,36 @@ class SupabaseDriver implements Driver {
     this.logger.debug("Creating SupabaseDriver")
   }
 
+  private async getClient() {
+    if (!this.sql) {
+      try {
+        const postgres = (await import("postgres")).default
+        // Use transaction pooler mode for edge compatibility
+        this.sql = postgres(this.connectionString, {
+          prepare: false,
+          max: 1
+        })
+        this.logger.debug("Supabase client created and cached")
+      } catch (error: any) {
+        if (error.code === 'MODULE_NOT_FOUND') {
+          throw new Error(
+            'Postgres driver not installed. Run: npm install postgres\n' +
+            'See: https://github.com/porsager/postgres'
+          )
+        }
+        throw new Error(`Failed to create Supabase client: ${error.message}`)
+      }
+    }
+    return this.sql
+  }
+
   async init(): Promise<void> {
     this.logger.debug("SupabaseDriver initialized")
   }
 
   async acquireConnection(): Promise<DatabaseConnection> {
-    return new SupabaseDatabaseConnection(this.connectionString, this.logger)
+    const sql = await this.getClient()
+    return new SupabaseDatabaseConnection(sql, this.logger)
   }
 
   async beginTransaction(_connection: DatabaseConnection, _settings: TransactionSettings): Promise<void> {
@@ -124,7 +136,17 @@ class SupabaseDriver implements Driver {
 
   async releaseConnection(_connection: DatabaseConnection): Promise<void> {}
 
-  async destroy(): Promise<void> {}
+  async destroy(): Promise<void> {
+    if (this.sql) {
+      try {
+        await this.sql.end()
+        this.logger.debug("Supabase client closed")
+      } catch (error: any) {
+        this.logger.warn("Error closing Supabase client", { error: error.message })
+      }
+      this.sql = null
+    }
+  }
 }
 
 class SupabasePostgresDialect implements Dialect {

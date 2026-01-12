@@ -48,31 +48,16 @@ export type TursoKyselyConfig = {
  * @internal
  */
 class TursoDatabaseConnection implements DatabaseConnection {
-  private readonly url: string
-  private readonly authToken: string
+  private readonly client: any
   private readonly logger: Logger
-  private client: any = null
 
-  constructor(url: string, authToken: string, logger: Logger) {
-    this.url = url
-    this.authToken = authToken
+  constructor(client: any, logger: Logger) {
+    this.client = client
     this.logger = logger
   }
 
-  private async getClient() {
-    if (!this.client) {
-      // Dynamically import libSQL to avoid bundling if not used
-      const { createClient } = await import("@libsql/client")
-      this.client = createClient({
-        url: this.url,
-        authToken: this.authToken
-      })
-    }
-    return this.client
-  }
-
   async executeQuery<R>(compiledQuery: CompiledQuery): Promise<QueryResult<R>> {
-    const client = await this.getClient()
+    const client = this.client
 
     this.logger.debug("Executing Turso query", {
       sqlLength: compiledQuery.sql.length,
@@ -99,6 +84,7 @@ class TursoDriver implements Driver {
   private readonly url: string
   private readonly authToken: string
   private readonly logger: Logger
+  private client: any = null
 
   constructor(config: TursoKyselyConfig) {
     this.url = config.url
@@ -107,12 +93,35 @@ class TursoDriver implements Driver {
     this.logger.debug("Creating TursoDriver")
   }
 
+  private async getClient() {
+    if (!this.client) {
+      try {
+        const { createClient } = await import("@libsql/client")
+        this.client = createClient({
+          url: this.url,
+          authToken: this.authToken
+        })
+        this.logger.debug("Turso client created and cached")
+      } catch (error: any) {
+        if (error.code === 'MODULE_NOT_FOUND') {
+          throw new Error(
+            'Turso driver not installed. Run: npm install @libsql/client\n' +
+            'See: https://github.com/tursodatabase/libsql-client-ts'
+          )
+        }
+        throw new Error(`Failed to create Turso client: ${error.message}`)
+      }
+    }
+    return this.client
+  }
+
   async init(): Promise<void> {
     this.logger.debug("TursoDriver initialized")
   }
 
   async acquireConnection(): Promise<DatabaseConnection> {
-    return new TursoDatabaseConnection(this.url, this.authToken, this.logger)
+    const client = await this.getClient()
+    return new TursoDatabaseConnection(client, this.logger)
   }
 
   async beginTransaction(_connection: DatabaseConnection, _settings: TransactionSettings): Promise<void> {
@@ -133,7 +142,17 @@ class TursoDriver implements Driver {
 
   async releaseConnection(_connection: DatabaseConnection): Promise<void> {}
 
-  async destroy(): Promise<void> {}
+  async destroy(): Promise<void> {
+    if (this.client) {
+      try {
+        await this.client.close()
+        this.logger.debug("Turso client closed")
+      } catch (error: any) {
+        this.logger.warn("Error closing Turso client", { error: error.message })
+      }
+      this.client = null
+    }
+  }
 }
 
 class TursoSqliteDialect implements Dialect {

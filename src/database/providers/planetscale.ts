@@ -53,38 +53,23 @@ export type PlanetScaleKyselyConfig = {
  * @internal
  */
 class PlanetScaleDatabaseConnection implements DatabaseConnection {
-  private readonly config: PlanetScaleKyselyConfig
+  private readonly connection: any
   private readonly logger: Logger
-  private connection: any = null
 
-  constructor(config: PlanetScaleKyselyConfig, logger: Logger) {
-    this.config = config
+  constructor(connection: any, logger: Logger) {
+    this.connection = connection
     this.logger = logger
   }
 
-  private async getConnection() {
-    if (!this.connection) {
-      // Dynamically import PlanetScale to avoid bundling if not used
-      const { connect } = await import("@planetscale/database")
-      this.connection = connect({
-        host: this.config.host,
-        username: this.config.username,
-        password: this.config.password,
-        fetch: this.config.fetch
-      })
-    }
-    return this.connection
-  }
-
   async executeQuery<R>(compiledQuery: CompiledQuery): Promise<QueryResult<R>> {
-    const conn = await this.getConnection()
+    const connection = this.connection
 
     this.logger.debug("Executing PlanetScale query", {
       sqlLength: compiledQuery.sql.length,
       paramCount: compiledQuery.parameters.length
     })
 
-    const result = await conn.execute(compiledQuery.sql, compiledQuery.parameters as any[])
+    const result = await connection.execute(compiledQuery.sql, compiledQuery.parameters as any[])
 
     return {
       rows: result.rows as R[]
@@ -100,6 +85,7 @@ class PlanetScaleDatabaseConnection implements DatabaseConnection {
 class PlanetScaleDriver implements Driver {
   private readonly config: PlanetScaleKyselyConfig
   private readonly logger: Logger
+  private connection: any = null
 
   constructor(config: PlanetScaleKyselyConfig) {
     this.config = config
@@ -107,12 +93,37 @@ class PlanetScaleDriver implements Driver {
     this.logger.debug("Creating PlanetScaleDriver")
   }
 
+  private async getConnection() {
+    if (!this.connection) {
+      try {
+        const { connect } = await import("@planetscale/database")
+        this.connection = connect({
+          host: this.config.host,
+          username: this.config.username,
+          password: this.config.password,
+          fetch: this.config.fetch
+        })
+        this.logger.debug("PlanetScale connection created and cached")
+      } catch (error: any) {
+        if (error.code === 'MODULE_NOT_FOUND') {
+          throw new Error(
+            'PlanetScale driver not installed. Run: npm install @planetscale/database\n' +
+            'See: https://github.com/planetscale/database-js'
+          )
+        }
+        throw new Error(`Failed to create PlanetScale connection: ${error.message}`)
+      }
+    }
+    return this.connection
+  }
+
   async init(): Promise<void> {
     this.logger.debug("PlanetScaleDriver initialized")
   }
 
   async acquireConnection(): Promise<DatabaseConnection> {
-    return new PlanetScaleDatabaseConnection(this.config, this.logger)
+    const connection = await this.getConnection()
+    return new PlanetScaleDatabaseConnection(connection, this.logger)
   }
 
   async beginTransaction(_connection: DatabaseConnection, _settings: TransactionSettings): Promise<void> {
@@ -133,7 +144,14 @@ class PlanetScaleDriver implements Driver {
 
   async releaseConnection(_connection: DatabaseConnection): Promise<void> {}
 
-  async destroy(): Promise<void> {}
+  async destroy(): Promise<void> {
+    // PlanetScale connections are stateless HTTP connections
+    // No explicit cleanup needed, but we clear the reference
+    if (this.connection) {
+      this.logger.debug("PlanetScale connection cleared")
+      this.connection = null
+    }
+  }
 }
 
 class PlanetScaleMysqlDialect implements Dialect {

@@ -56,9 +56,11 @@ CREATE INDEX IF NOT EXISTS idx_users_linkedin_id ON users(linkedin_id) WHERE lin
 CREATE INDEX IF NOT EXISTS idx_users_meta_id ON users(meta_id) WHERE meta_id IS NOT NULL;
 
 -- Create trigger for automatic updated_at timestamp
+-- WHEN clause prevents infinite recursion by only triggering when updated_at hasn't changed
 CREATE TRIGGER IF NOT EXISTS update_users_updated_at
   AFTER UPDATE ON users
   FOR EACH ROW
+  WHEN NEW.updated_at = OLD.updated_at
 BEGIN
   UPDATE users SET updated_at = unixepoch() WHERE id = NEW.id;
 END;

@@ -47,28 +47,49 @@ export type NeonKyselyConfig = {
 class NeonDatabaseConnection implements DatabaseConnection {
   private readonly connectionString: string
   private readonly logger: Logger
+  private sql: any
 
   constructor(connectionString: string, logger: Logger) {
     this.connectionString = connectionString
     this.logger = logger
   }
 
+  private async getClient() {
+    if (!this.sql) {
+      try {
+        // Dynamically import Neon to avoid bundling if not used
+        const { neon } = await import("@neondatabase/serverless")
+        this.sql = neon(this.connectionString)
+      } catch (error: any) {
+        if (error.code === 'MODULE_NOT_FOUND') {
+          throw new Error(
+            'Neon driver not installed. Run: npm install @neondatabase/serverless\n' +
+            'See: https://github.com/neondatabase/serverless-driver'
+          )
+        }
+        throw new Error(`Failed to create Neon client: ${error.message}`)
+      }
+    }
+    return this.sql
+  }
+
   async executeQuery<R>(compiledQuery: CompiledQuery): Promise<QueryResult<R>> {
-    // Dynamically import Neon to avoid bundling if not used
-    const { neon } = await import("@neondatabase/serverless")
-    const sql = neon(this.connectionString)
+    const sql = await this.getClient()
 
     this.logger.debug("Executing Neon query", {
       sqlLength: compiledQuery.sql.length,
       paramCount: compiledQuery.parameters.length
     })
 
-    // Use the query() method for parameterized queries
-    const result = await sql.query(compiledQuery.sql, compiledQuery.parameters as any[])
-
-    return {
-      rows: result.rows as R[]
-    } as QueryResult<R>
+    try {
+      // Use the query() method for parameterized queries
+      const result = await sql.query(compiledQuery.sql, compiledQuery.parameters as any[])
+      return {
+        rows: result.rows as R[]
+      } as QueryResult<R>
+    } catch (error: any) {
+      throw new Error(`Failed to execute Neon query: ${error.message}`)
+    }
   }
 
   async *streamQuery<R>(compiledQuery: CompiledQuery): AsyncIterableIterator<QueryResult<R>> {
