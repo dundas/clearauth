@@ -21,6 +21,15 @@ export class EmailManager {
     if (this.provider && !config.baseUrl) {
       throw new Error('[ClearAuth] config.baseUrl is required when using email providers')
     }
+
+    // Validate baseUrl format if provider is configured
+    if (this.provider && config.baseUrl) {
+      try {
+        new URL(config.baseUrl)
+      } catch {
+        throw new Error('[ClearAuth] config.baseUrl must be a valid URL (e.g., https://example.com)')
+      }
+    }
   }
 
   /**

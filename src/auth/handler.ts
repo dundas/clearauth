@@ -184,7 +184,12 @@ async function handleRegister(request: Request, config: ClearAuthConfig): Promis
   if (config.emailPassword?.requireEmailVerification) {
     const emailManager = new EmailManager(config)
     const verificationUrl = `/auth/verify-email?token=${result.verificationToken}`
-    await emailManager.sendVerificationEmail(email, result.verificationToken, verificationUrl)
+    try {
+      await emailManager.sendVerificationEmail(email, result.verificationToken, verificationUrl)
+    } catch (error) {
+      console.error('[ClearAuth] Failed to send verification email:', error)
+      // Don't fail registration if email sending fails
+    }
   }
 
   const cookieName = config.session?.cookie?.name ?? 'session'
@@ -271,7 +276,12 @@ async function handleResendVerification(request: Request, config: ClearAuthConfi
   // Send the new verification email
   const emailManager = new EmailManager(config)
   const verificationUrl = `/auth/verify-email?token=${result.token}`
-  await emailManager.sendVerificationEmail(email, result.token, verificationUrl)
+  try {
+    await emailManager.sendVerificationEmail(email, result.token, verificationUrl)
+  } catch (error) {
+    console.error('[ClearAuth] Failed to send verification email:', error)
+    // Don't fail the request if email sending fails
+  }
 
   return jsonResponse(result)
 }
@@ -437,7 +447,12 @@ async function handleRequestReset(request: Request, config: ClearAuthConfig): Pr
   const emailManager = new EmailManager(config)
   await requestPasswordReset(config.database, email, async (resolvedEmail, token) => {
     const resetUrl = `/auth/reset-password?token=${token}`
-    await emailManager.sendPasswordResetEmail(resolvedEmail, token, resetUrl)
+    try {
+      await emailManager.sendPasswordResetEmail(resolvedEmail, token, resetUrl)
+    } catch (error) {
+      console.error('[ClearAuth] Failed to send password reset email:', error)
+      // Don't fail the request if email sending fails
+    }
   })
 
   // Always return success to prevent email enumeration
@@ -522,7 +537,12 @@ async function handleRequestMagicLink(request: Request, config: ClearAuthConfig)
   const emailManager = new EmailManager(config)
   await requestMagicLink(config.database, email, returnTo, async (resolvedEmail, token, linkUrl) => {
     // linkUrl is relative and already includes returnTo encoding when provided
-    await emailManager.sendMagicLink(resolvedEmail, token, linkUrl)
+    try {
+      await emailManager.sendMagicLink(resolvedEmail, token, linkUrl)
+    } catch (error) {
+      console.error('[ClearAuth] Failed to send magic link email:', error)
+      // Don't fail the request if email sending fails
+    }
   })
 
   // Always return success to prevent email enumeration

@@ -36,6 +36,26 @@ describe('EmailManager', () => {
       )
     })
 
+    it('should throw error when provider is configured with invalid baseUrl', () => {
+      const mockProvider: EmailProvider = {
+        name: 'test',
+        send: vi.fn()
+      }
+
+      const configWithInvalidUrl = {
+        database: mockDb,
+        secret: 'test-secret',
+        baseUrl: 'not-a-valid-url',
+        email: {
+          provider: mockProvider
+        }
+      } as ClearAuthConfig
+
+      expect(() => new EmailManager(configWithInvalidUrl)).toThrow(
+        '[ClearAuth] config.baseUrl must be a valid URL'
+      )
+    })
+
     it('should not throw when provider is configured and baseUrl is present', () => {
       const mockProvider: EmailProvider = {
         name: 'test',
