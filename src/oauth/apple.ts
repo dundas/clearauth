@@ -36,12 +36,18 @@ export async function handleAppleCallback(
     sub: string
     email: string
     email_verified?: string | boolean
+    name?: {
+      firstName?: string
+      lastName?: string
+    }
   }
 
+  // Apple only sends name on first login in a separate 'user' parameter in the POST body.
+  // Arctic handles the standard flow, but the caller must provide the name if they want it.
   const profile: OAuthUserProfile = {
     id: claims.sub,
     email: claims.email,
-    name: null, // Apple only sends name on first login in a separate 'user' parameter
+    name: claims.name ? `${claims.name.firstName ?? ''} ${claims.name.lastName ?? ''}`.trim() || null : null,
     avatar_url: null,
     email_verified: claims.email_verified === 'true' || claims.email_verified === true
   }

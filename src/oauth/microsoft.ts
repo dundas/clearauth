@@ -41,16 +41,17 @@ export async function handleMicrosoftCallback(
     name?: string
   }
 
+  const email = claims.email || claims.preferred_username
+  if (!email || !email.includes('@')) {
+    throw new Error('Microsoft account must have a valid email address')
+  }
+
   const profile: OAuthUserProfile = {
     id: claims.sub,
-    email: claims.email || claims.preferred_username || '',
+    email,
     name: claims.name || null,
     avatar_url: null,
     email_verified: true // Microsoft verified the email if it's in the token
-  }
-
-  if (!profile.email || !profile.email.includes('@')) {
-    throw new Error('Microsoft account must have a valid email address')
   }
 
   return { 
