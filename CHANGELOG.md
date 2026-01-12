@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-12
+
+### Added
+
+- **Multi-Database Provider Support** - Expanded database compatibility beyond Mech Storage
+  - **Neon PostgreSQL** - Serverless PostgreSQL with HTTP API (edge-compatible)
+  - **Turso (libSQL)** - Edge-hosted distributed SQLite database
+  - **Cloudflare D1** - Native SQLite for Cloudflare Workers
+  - **PlanetScale** - Serverless MySQL with HTTP API (edge-compatible)
+  - **Supabase PostgreSQL** - PostgreSQL with connection pooler for edge
+  - Complete Kysely adapters for all providers with consistent API
+  - Dynamic imports to avoid bundling unused providers
+  - Connection pooling at Driver level for optimal performance
+  - Comprehensive documentation in `docs/DATABASE_PROVIDERS.md`
+  - Transparent limitations documentation in `docs/DATABASE_PROVIDERS_LIMITATIONS.md`
+  - Complete migration scripts for SQLite (Turso/D1) and MySQL (PlanetScale)
+  - All 5 database tables supported: users, sessions, email_verification_tokens, password_reset_tokens, magic_link_tokens
+  - 29 passing tests covering all providers
+  - Error sanitization to prevent credential exposure in logs
+  - Helpful error messages with installation instructions
+
+### Fixed
+
+- **Connection Pooling** - Clients now cached at Driver level instead of per-query
+  - Turso: Proper client caching with cleanup via `close()`
+  - Supabase: postgres.js client cached with cleanup via `end()`
+  - PlanetScale: Connection cached (stateless HTTP)
+  - Prevents memory leaks and improves performance
+- **Error Handling** - Better module detection and credential sanitization
+  - Detects missing modules in both CJS and ESM environments
+  - Sanitizes connection strings, auth tokens, and passwords in error messages
+  - Provides helpful installation instructions with GitHub links
+- **SQLite Trigger** - Fixed potential infinite recursion in timestamp update trigger
+  - Added WHEN clause to only trigger when timestamp hasn't changed
+
+### Documentation
+
+- Added `DATABASE_PROVIDERS.md` with setup guides for all 6 providers
+- Added `DATABASE_PROVIDERS_LIMITATIONS.md` documenting:
+  - Schema type differences (PostgreSQL vs SQLite vs MySQL)
+  - Transaction support limitations
+  - Connection pooling constraints
+  - Edge runtime requirements
+  - Security considerations
+  - Type conversion examples and workarounds
+- Updated migration READMEs with complete setup instructions
+
+## [0.3.2] - Previous Release
+
 ### Added
 
 - **Magic Link Authentication** - Passwordless login via email
