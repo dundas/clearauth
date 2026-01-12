@@ -27,6 +27,23 @@ export type { CorsConfig, ClearAuthConfig, OAuthProviderConfig, OAuthProvidersCo
 export { createMechKysely } from "./mech-kysely.js"
 export type { MechKyselyConfig } from "./mech-kysely.js"
 
+// Database providers (edge-compatible)
+export {
+  createNeonKysely,
+  createTursoKysely,
+  createD1Kysely,
+  createPlanetScaleKysely,
+  createSupabaseKysely,
+} from "./database/providers/index.js"
+export type {
+  NeonKyselyConfig,
+  TursoKyselyConfig,
+  D1KyselyConfig,
+  D1Database,
+  PlanetScaleKyselyConfig,
+  SupabaseKyselyConfig,
+} from "./database/providers/index.js"
+
 // Database schema types
 export type {
   Database,

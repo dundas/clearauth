@@ -9,6 +9,9 @@ export * from "./createMechAuth.js"
 export * from "./types.js"
 export * from "./database/schema.js"
 
+// Database providers
+export * from "./database/providers/index.js"
+
 // OAuth functionality
 export * from "./oauth/callbacks.js"
 export * from "./oauth/handler.js"
