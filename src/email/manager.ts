@@ -17,6 +17,10 @@ export class EmailManager {
     this.config = config
     this.provider = config.email?.provider
     this.appName = 'ClearAuth' // Could be made configurable in the future
+
+    if (this.provider && !config.baseUrl) {
+      throw new Error('[ClearAuth] config.baseUrl is required when using email providers')
+    }
   }
 
   /**
