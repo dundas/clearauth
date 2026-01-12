@@ -24,8 +24,8 @@ export interface UsersTable {
   password_hash: string | null // NULL for OAuth-only users
 
   // OAuth provider IDs
-  github_id?: string | null
-  google_id?: string | null
+  github_id: string | null
+  google_id: string | null
   discord_id?: string | null
   apple_id?: string | null
   microsoft_id?: string | null

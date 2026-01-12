@@ -24,6 +24,13 @@ import {
 
 /**
  * Helper to create Headers with multiple Set-Cookie headers
+ *
+ * HTTP spec requires each cookie to be a separate Set-Cookie header entry,
+ * not comma-separated in a single header.
+ *
+ * @param cookies - Array of cookie header strings
+ * @param location - Redirect location URL
+ * @returns Headers object with proper Set-Cookie headers
  */
 function createHeadersWithCookies(cookies: string[], location?: string): Headers {
   const headers = new Headers()
@@ -38,6 +45,10 @@ function createHeadersWithCookies(cookies: string[], location?: string): Headers
 
 /**
  * Helper to handle generic OAuth login initiation
+ *
+ * @param config - ClearAuth configuration
+ * @param providerName - Human-readable provider name for logging
+ * @param authUrlGenerator - Function to generate authorization URL and state
  */
 async function handleOAuthLogin(
   config: ClearAuthConfig,
@@ -76,6 +87,11 @@ async function handleOAuthLogin(
 
 /**
  * Helper to handle generic OAuth callback
+ *
+ * @param request - Incoming HTTP request
+ * @param config - ClearAuth configuration
+ * @param providerName - Provider key for upsertOAuthUser (e.g., 'github', 'discord')
+ * @param callbackHandler - Function to exchange code for profile
  */
 async function handleOAuthCallbackRequest(
   request: Request,
@@ -106,7 +122,7 @@ async function handleOAuthCallbackRequest(
     }
 
     const result = await callbackHandler(config, code, storedState, returnedState, codeVerifier)
-    const user = await upsertOAuthUser(config.database, providerName, result.profile)
+    const user = await upsertOAuthUser(config.database, providerName as any, result.profile)
     const context = getRequestContext(request)
     const expiresInSeconds = config.session?.expiresIn ?? 2592000 // 30 days
     const sessionId = await createSession(config.database, user.id, expiresInSeconds, context)
@@ -137,6 +153,13 @@ async function handleOAuthCallbackRequest(
 
 /**
  * OAuth Request Handler
+ *
+ * Main handler for OAuth-related requests. Routes requests to appropriate
+ * provider handlers based on URL path.
+ *
+ * @param request - HTTP request
+ * @param config - Clear Auth configuration
+ * @returns HTTP response
  */
 export async function handleOAuthRequest(
   request: Request,
@@ -206,6 +229,10 @@ export async function handleOAuthRequest(
 
 /**
  * Extract request context from HTTP request
+ *
+ * Extracts IP address and user agent from request headers.
+ *
+ * @internal
  */
 function getRequestContext(request: Request): RequestContext {
   const headers = request.headers

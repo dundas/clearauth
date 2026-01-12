@@ -49,7 +49,11 @@ export async function handleMetaCallback(
   const tokens = await meta.validateAuthorizationCode(code)
   const accessToken = tokens.accessToken()
 
-  const response = await fetch(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`)
+  const response = await fetch('https://graph.facebook.com/me?fields=id,name,email,picture', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  })
 
   if (!response.ok) {
     throw new Error(`Meta API error: ${response.status}`)
