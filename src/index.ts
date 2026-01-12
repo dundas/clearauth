@@ -10,11 +10,15 @@ export * from "./types.js"
 export * from "./database/schema.js"
 
 // OAuth functionality
-export * from "./oauth/arctic-providers.js"
-export * from "./oauth/github.js"
-export * from "./oauth/google.js"
 export * from "./oauth/callbacks.js"
 export * from "./oauth/handler.js"
+export * from "./oauth/github.js"
+export * from "./oauth/google.js"
+export * from "./oauth/discord.js"
+export * from "./oauth/apple.js"
+export * from "./oauth/microsoft.js"
+export * from "./oauth/linkedin.js"
+export * from "./oauth/meta.js"
 
 // Email/Password authentication
 export * from "./auth/utils.js"

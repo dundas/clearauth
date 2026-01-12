@@ -20,9 +20,16 @@ export interface OAuthProviderConfig {
 /**
  * OAuth Providers Configuration
  */
+export type OAuthProvider = 'github' | 'google' | 'discord' | 'apple' | 'microsoft' | 'linkedin' | 'meta'
+
 export interface OAuthProvidersConfig {
   github?: OAuthProviderConfig
   google?: OAuthProviderConfig
+  discord?: OAuthProviderConfig
+  apple?: OAuthProviderConfig & { teamId: string; keyId: string; privateKey: string }
+  microsoft?: OAuthProviderConfig & { tenantId?: string }
+  linkedin?: OAuthProviderConfig
+  meta?: OAuthProviderConfig
 }
 
 /**

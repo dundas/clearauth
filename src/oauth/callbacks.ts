@@ -11,7 +11,7 @@
 import { base64url } from 'oslo/encoding'
 import type { Kysely } from 'kysely'
 import type { Database, User, NewUser, NewSession } from '../database/schema.js'
-import type { OAuthUserProfile, RequestContext } from '../types.js'
+import type { OAuthUserProfile, RequestContext, OAuthProvider } from '../types.js'
 
 /**
  * Generate a secure random session ID
@@ -31,7 +31,7 @@ function generateSessionId(entropySize: number = 25): string {
  * Uses github_id or google_id column to identify existing users.
  *
  * @param db - Kysely database instance
- * @param provider - OAuth provider name ('github' or 'google')
+ * @param provider - OAuth provider name
  * @param profile - Normalized OAuth user profile
  * @returns User record from database
  *
@@ -42,10 +42,10 @@ function generateSessionId(entropySize: number = 25): string {
  */
 export async function upsertOAuthUser(
   db: Kysely<Database>,
-  provider: 'github' | 'google',
+  provider: OAuthProvider,
   profile: OAuthUserProfile
 ): Promise<User> {
-  const providerIdColumn = provider === 'github' ? 'github_id' : 'google_id'
+  const providerIdColumn = `${provider}_id` as keyof User & string
 
   // Check if user exists by provider ID
   const existingUser = await db

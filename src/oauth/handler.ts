@@ -1,13 +1,18 @@
 /**
  * OAuth HTTP Request Handler
  *
- * Handles OAuth-related HTTP requests for GitHub and Google authentication.
+ * Handles OAuth-related HTTP requests for various providers.
  * Provides login initiation and callback handling endpoints.
  */
 
 import type { ClearAuthConfig, RequestContext } from '../types.js'
 import { generateGitHubAuthUrl, handleGitHubCallback } from './github.js'
 import { generateGoogleAuthUrl, handleGoogleCallback } from './google.js'
+import { generateDiscordAuthUrl, handleDiscordCallback } from './discord.js'
+import { generateAppleAuthUrl, handleAppleCallback } from './apple.js'
+import { generateMicrosoftAuthUrl, handleMicrosoftCallback } from './microsoft.js'
+import { generateLinkedInAuthUrl, handleLinkedInCallback } from './linkedin.js'
+import { generateMetaAuthUrl, handleMetaCallback } from './meta.js'
 import { normalizeAuthPath } from '../utils/normalize-auth-path.js'
 import {
   upsertOAuthUser,
@@ -39,96 +44,60 @@ function createHeadersWithCookies(cookies: string[], location?: string): Headers
 }
 
 /**
- * OAuth Request Handler
+ * Helper to handle generic OAuth login initiation
  *
- * Main handler for OAuth-related requests. Routes requests to appropriate
- * provider handlers based on URL path.
- *
- * @param request - HTTP request
- * @param config - Clear Auth configuration
- * @returns HTTP response
- *
- * @example
- * ```ts
- * export default {
- *   async fetch(request: Request, env: Env) {
- *     const url = new URL(request.url)
- *     if (url.pathname.startsWith('/auth/oauth/')) {
- *       return handleOAuthRequest(request, config)
- *     }
- *     // ... other routes
- *   }
- * }
- * ```
+ * @param config - ClearAuth configuration
+ * @param providerName - Human-readable provider name for logging
+ * @param authUrlGenerator - Function to generate authorization URL and state
  */
-export async function handleOAuthRequest(
-  request: Request,
-  config: ClearAuthConfig
+async function handleOAuthLogin(
+  config: ClearAuthConfig,
+  providerName: string,
+  authUrlGenerator: (config: ClearAuthConfig) => Promise<{ url: URL; state: string; codeVerifier?: string }>
 ): Promise<Response> {
-  const url = new URL(request.url)
-  const pathname = normalizeAuthPath(url.pathname)
-
-  // GitHub OAuth routes
-  if (pathname === '/auth/oauth/github' || pathname === '/auth/github/login') {
-    return handleGitHubLogin(request, config)
-  }
-
-  if (pathname === '/auth/callback/github' || pathname === '/auth/github/callback') {
-    return handleGitHubCallbackRequest(request, config)
-  }
-
-  // Google OAuth routes
-  if (pathname === '/auth/oauth/google' || pathname === '/auth/google/login') {
-    return handleGoogleLogin(request, config)
-  }
-
-  if (pathname === '/auth/callback/google' || pathname === '/auth/google/callback') {
-    return handleGoogleCallbackRequest(request, config)
-  }
-
-  return new Response('Not Found', { status: 404 })
-}
-
-/**
- * Handle GitHub login initiation
- *
- * Generates GitHub OAuth URL and redirects user to GitHub for authentication.
- * Stores state parameter in cookie for CSRF protection.
- */
-async function handleGitHubLogin(request: Request, config: ClearAuthConfig): Promise<Response> {
   try {
-    const { url, state } = await generateGitHubAuthUrl(config)
+    const { url, state, codeVerifier } = await authUrlGenerator(config)
 
-    // Store state in cookie for validation
-    const stateCookie = createCookieHeader('oauth_state', state, {
+    const cookies: string[] = []
+    cookies.push(createCookieHeader('oauth_state', state, {
       httpOnly: true,
       secure: config.isProduction ?? true,
       sameSite: 'lax',
       path: '/',
       maxAge: 600, // 10 minutes
-    })
+    }))
 
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: url.toString(),
-        'Set-Cookie': stateCookie,
-      },
-    })
+    if (codeVerifier) {
+      cookies.push(createCookieHeader('oauth_code_verifier', codeVerifier, {
+        httpOnly: true,
+        secure: config.isProduction ?? true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 600, // 10 minutes
+      }))
+    }
+
+    const headers = createHeadersWithCookies(cookies, url.toString())
+    return new Response(null, { status: 302, headers })
   } catch (error) {
-    console.error('GitHub login error:', error)
+    console.error(`${providerName} login error:`, error)
     return new Response('OAuth configuration error', { status: 500 })
   }
 }
 
 /**
- * Handle GitHub OAuth callback
+ * Helper to handle generic OAuth callback
  *
- * Validates OAuth callback, creates/updates user, and creates session.
+ * @param request - Incoming HTTP request
+ * @param config - ClearAuth configuration
+ * @param providerName - Provider key for upsertOAuthUser (e.g., 'github', 'discord')
+ * @param callbackHandler - Function to exchange code for profile
  */
-async function handleGitHubCallbackRequest(
+async function handleOAuthCallbackRequest(
   request: Request,
-  config: ClearAuthConfig
+  config: ClearAuthConfig,
+  providerName: string,
+  callbackHandler: (config: ClearAuthConfig, code: string, storedState: string, returnedState: string, codeVerifier?: string) => Promise<any>
 ): Promise<Response> {
   try {
     const url = new URL(request.url)
@@ -136,7 +105,6 @@ async function handleGitHubCallbackRequest(
     const returnedState = url.searchParams.get('state')
     const error = url.searchParams.get('error')
 
-    // Check for OAuth errors
     if (error) {
       return new Response(`OAuth error: ${error}`, { status: 400 })
     }
@@ -145,120 +113,6 @@ async function handleGitHubCallbackRequest(
       return new Response('Missing code or state parameter', { status: 400 })
     }
 
-    // Get stored state from cookie
-    const cookies = parseCookies(request.headers.get('Cookie') || '')
-    const storedState = cookies['oauth_state']
-
-    if (!storedState) {
-      return new Response('Missing state cookie', { status: 400 })
-    }
-
-    // Handle OAuth callback
-    const result = await handleGitHubCallback(config, code, storedState, returnedState)
-
-    // Upsert user
-    const user = await upsertOAuthUser(config.database, 'github', result.profile)
-
-    // Create session
-    const context = getRequestContext(request)
-    const expiresInSeconds = config.session?.expiresIn ?? 2592000 // 30 days
-    const sessionId = await createSession(config.database, user.id, expiresInSeconds, context)
-
-    // Create session cookie
-    const cookieName = config.session?.cookie?.name ?? 'session'
-    const sessionCookie = createCookieHeader(cookieName, sessionId, {
-      httpOnly: config.session?.cookie?.httpOnly ?? true,
-      secure: config.session?.cookie?.secure ?? config.isProduction ?? true,
-      sameSite: config.session?.cookie?.sameSite ?? 'lax',
-      path: config.session?.cookie?.path ?? '/',
-      domain: config.session?.cookie?.domain,
-      maxAge: expiresInSeconds,
-    })
-
-    // Clear state cookie
-    const deleteStateCookie = createDeleteCookieHeader('oauth_state', { path: '/' })
-
-    // Redirect to success page or home
-    const headers = createHeadersWithCookies(
-      [sessionCookie, deleteStateCookie],
-      '/' // TODO: Make this configurable
-    )
-
-    return new Response(null, {
-      status: 302,
-      headers,
-    })
-  } catch (error) {
-    console.error('GitHub callback error:', error)
-    const message = error instanceof Error ? error.message : 'OAuth callback failed'
-    return new Response(message, { status: 400 })
-  }
-}
-
-/**
- * Handle Google login initiation
- *
- * Generates Google OAuth URL and redirects user to Google for authentication.
- * Stores state and code verifier in cookies for CSRF protection and PKCE.
- */
-async function handleGoogleLogin(request: Request, config: ClearAuthConfig): Promise<Response> {
-  try {
-    const { url, state, codeVerifier } = await generateGoogleAuthUrl(config)
-
-    // Store state and code verifier in cookies for validation
-    const stateCookie = createCookieHeader('oauth_state', state, {
-      httpOnly: true,
-      secure: config.isProduction ?? true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 600, // 10 minutes
-    })
-
-    const verifierCookie = createCookieHeader('oauth_code_verifier', codeVerifier, {
-      httpOnly: true,
-      secure: config.isProduction ?? true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 600, // 10 minutes
-    })
-
-    const headers = createHeadersWithCookies([stateCookie, verifierCookie], url.toString())
-
-    return new Response(null, {
-      status: 302,
-      headers,
-    })
-  } catch (error) {
-    console.error('Google login error:', error)
-    return new Response('OAuth configuration error', { status: 500 })
-  }
-}
-
-/**
- * Handle Google OAuth callback
- *
- * Validates OAuth callback, creates/updates user, and creates session.
- */
-async function handleGoogleCallbackRequest(
-  request: Request,
-  config: ClearAuthConfig
-): Promise<Response> {
-  try {
-    const url = new URL(request.url)
-    const code = url.searchParams.get('code')
-    const returnedState = url.searchParams.get('state')
-    const error = url.searchParams.get('error')
-
-    // Check for OAuth errors
-    if (error) {
-      return new Response(`OAuth error: ${error}`, { status: 400 })
-    }
-
-    if (!code || !returnedState) {
-      return new Response('Missing code or state parameter', { status: 400 })
-    }
-
-    // Get stored state and code verifier from cookies
     const cookies = parseCookies(request.headers.get('Cookie') || '')
     const storedState = cookies['oauth_state']
     const codeVerifier = cookies['oauth_code_verifier']
@@ -267,22 +121,12 @@ async function handleGoogleCallbackRequest(
       return new Response('Missing state cookie', { status: 400 })
     }
 
-    if (!codeVerifier) {
-      return new Response('Missing code verifier cookie', { status: 400 })
-    }
-
-    // Handle OAuth callback
-    const result = await handleGoogleCallback(config, code, storedState, returnedState, codeVerifier)
-
-    // Upsert user
-    const user = await upsertOAuthUser(config.database, 'google', result.profile)
-
-    // Create session
+    const result = await callbackHandler(config, code, storedState, returnedState, codeVerifier)
+    const user = await upsertOAuthUser(config.database, providerName as any, result.profile)
     const context = getRequestContext(request)
     const expiresInSeconds = config.session?.expiresIn ?? 2592000 // 30 days
     const sessionId = await createSession(config.database, user.id, expiresInSeconds, context)
 
-    // Create session cookie
     const cookieName = config.session?.cookie?.name ?? 'session'
     const sessionCookie = createCookieHeader(cookieName, sessionId, {
       httpOnly: config.session?.cookie?.httpOnly ?? true,
@@ -293,25 +137,94 @@ async function handleGoogleCallbackRequest(
       maxAge: expiresInSeconds,
     })
 
-    // Clear state and verifier cookies
-    const deleteStateCookie = createDeleteCookieHeader('oauth_state', { path: '/' })
-    const deleteVerifierCookie = createDeleteCookieHeader('oauth_code_verifier', { path: '/' })
+    const deleteCookies = [createDeleteCookieHeader('oauth_state', { path: '/' })]
+    if (codeVerifier) {
+      deleteCookies.push(createDeleteCookieHeader('oauth_code_verifier', { path: '/' }))
+    }
 
-    // Redirect to success page or home
-    const headers = createHeadersWithCookies(
-      [sessionCookie, deleteStateCookie, deleteVerifierCookie],
-      '/' // TODO: Make this configurable
-    )
-
-    return new Response(null, {
-      status: 302,
-      headers,
-    })
+    const headers = createHeadersWithCookies([sessionCookie, ...deleteCookies], '/')
+    return new Response(null, { status: 302, headers })
   } catch (error) {
-    console.error('Google callback error:', error)
+    console.error(`${providerName} callback error:`, error)
     const message = error instanceof Error ? error.message : 'OAuth callback failed'
     return new Response(message, { status: 400 })
   }
+}
+
+/**
+ * OAuth Request Handler
+ *
+ * Main handler for OAuth-related requests. Routes requests to appropriate
+ * provider handlers based on URL path.
+ *
+ * @param request - HTTP request
+ * @param config - Clear Auth configuration
+ * @returns HTTP response
+ */
+export async function handleOAuthRequest(
+  request: Request,
+  config: ClearAuthConfig
+): Promise<Response> {
+  const url = new URL(request.url)
+  const pathname = normalizeAuthPath(url.pathname)
+
+  // GitHub
+  if (pathname === '/auth/oauth/github' || pathname === '/auth/github/login') {
+    return handleOAuthLogin(config, 'GitHub', generateGitHubAuthUrl)
+  }
+  if (pathname === '/auth/callback/github' || pathname === '/auth/github/callback') {
+    return handleOAuthCallbackRequest(request, config, 'github', handleGitHubCallback)
+  }
+
+  // Google
+  if (pathname === '/auth/oauth/google' || pathname === '/auth/google/login') {
+    return handleOAuthLogin(config, 'Google', generateGoogleAuthUrl)
+  }
+  if (pathname === '/auth/callback/google' || pathname === '/auth/google/callback') {
+    return handleOAuthCallbackRequest(request, config, 'google', (c, code, s, r, v) => handleGoogleCallback(c, code, s, r, v!))
+  }
+
+  // Discord
+  if (pathname === '/auth/oauth/discord' || pathname === '/auth/discord/login') {
+    return handleOAuthLogin(config, 'Discord', generateDiscordAuthUrl)
+  }
+  if (pathname === '/auth/callback/discord' || pathname === '/auth/discord/callback') {
+    return handleOAuthCallbackRequest(request, config, 'discord', handleDiscordCallback)
+  }
+
+  // Apple
+  if (pathname === '/auth/oauth/apple' || pathname === '/auth/apple/login') {
+    return handleOAuthLogin(config, 'Apple', generateAppleAuthUrl)
+  }
+  if (pathname === '/auth/callback/apple' || pathname === '/auth/apple/callback') {
+    return handleOAuthCallbackRequest(request, config, 'apple', handleAppleCallback)
+  }
+
+  // Microsoft
+  if (pathname === '/auth/oauth/microsoft' || pathname === '/auth/microsoft/login') {
+    return handleOAuthLogin(config, 'Microsoft', generateMicrosoftAuthUrl)
+  }
+  if (pathname === '/auth/callback/microsoft' || pathname === '/auth/microsoft/callback') {
+    return handleOAuthCallbackRequest(request, config, 'microsoft', (c, code, s, r, v) => handleMicrosoftCallback(c, code, s, r, v!))
+  }
+
+  // LinkedIn
+  if (pathname === '/auth/oauth/linkedin' || pathname === '/auth/linkedin/login') {
+    return handleOAuthLogin(config, 'LinkedIn', generateLinkedInAuthUrl)
+  }
+  if (pathname === '/auth/callback/linkedin' || pathname === '/auth/linkedin/callback') {
+    return handleOAuthCallbackRequest(request, config, 'linkedin', handleLinkedInCallback)
+  }
+
+  // Meta
+  if (pathname === '/auth/oauth/meta' || pathname === '/auth/meta/login') {
+    return handleOAuthLogin(config, 'Meta', generateMetaAuthUrl)
+  }
+  if (pathname === '/auth/callback/meta' || pathname === '/auth/meta/callback') {
+    return handleOAuthCallbackRequest(request, config, 'meta', handleMetaCallback)
+  }
+
+  return new Response('Not Found', { status: 404 })
 }
 
 /**
@@ -322,18 +235,14 @@ async function handleGoogleCallbackRequest(
  * @internal
  */
 function getRequestContext(request: Request): RequestContext {
-  // Try various headers for IP address
   const headers = request.headers
   const ipAddress =
-    headers.get('cf-connecting-ip') || // Cloudflare
-    headers.get('x-real-ip') || // Nginx
-    headers.get('x-forwarded-for')?.split(',')[0] || // Standard proxy header
+    headers.get('cf-connecting-ip') ||
+    headers.get('x-real-ip') ||
+    headers.get('x-forwarded-for')?.split(',')[0] ||
     undefined
 
   const userAgent = headers.get('user-agent') || undefined
 
-  return {
-    ipAddress,
-    userAgent,
-  }
+  return { ipAddress, userAgent }
 }
