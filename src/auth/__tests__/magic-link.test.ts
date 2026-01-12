@@ -12,21 +12,59 @@ import type { Database } from '../../database/schema.js'
 // Fixed timestamp for deterministic testing
 const FIXED_TIME = new Date('2026-01-12T12:00:00Z')
 
-// Mock database
+// Mock database with proper chaining support
 const createMockDb = () => {
+  const mockExecuteTakeFirst = vi.fn()
+  const mockExecute = vi.fn()
+  
+  const mockWhere = vi.fn(() => ({
+    executeTakeFirst: mockExecuteTakeFirst,
+    execute: mockExecute,
+  }))
+  
+  const mockSet = vi.fn(() => ({
+    where: mockWhere,
+    execute: mockExecute,
+  }))
+  
+  const mockValues = vi.fn(() => ({
+    execute: mockExecute,
+  }))
+  
+  const mockSelectAll = vi.fn(() => ({
+    where: mockWhere,
+  }))
+  
+  const mockSelect = vi.fn(() => ({
+    where: mockWhere,
+  }))
+  
   const mockDb = {
-    selectFrom: vi.fn().mockReturnThis(),
-    select: vi.fn().mockReturnThis(),
-    selectAll: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    executeTakeFirst: vi.fn(),
-    deleteFrom: vi.fn().mockReturnThis(),
-    execute: vi.fn(),
-    insertInto: vi.fn().mockReturnThis(),
-    values: vi.fn().mockReturnThis(),
-    updateTable: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-  } as unknown as Kysely<Database>
+    selectFrom: vi.fn((table: string) => {
+      if (table === 'magic_link_tokens' || table === 'users') {
+        return {
+          selectAll: mockSelectAll,
+          select: mockSelect,
+        }
+      }
+      return { selectAll: mockSelectAll, select: mockSelect }
+    }),
+    deleteFrom: vi.fn(() => ({
+      where: mockWhere,
+    })),
+    insertInto: vi.fn(() => ({
+      values: mockValues,
+    })),
+    updateTable: vi.fn(() => ({
+      set: mockSet,
+    })),
+    // Expose mock functions for assertions
+    _mockExecuteTakeFirst: mockExecuteTakeFirst,
+    _mockExecute: mockExecute,
+    _mockWhere: mockWhere,
+    _mockSet: mockSet,
+    _mockValues: mockValues,
+  } as any
 
   return mockDb
 }
@@ -48,7 +86,7 @@ describe('Magic Link Authentication', () => {
       const db = createMockDb()
 
       // Mock: User exists
-      vi.mocked(db.selectFrom('users').select(['id', 'email']).where('email', '=', 'user@example.com').executeTakeFirst).mockResolvedValue({
+      db._mockExecuteTakeFirst.mockResolvedValueOnce({
         id: 'user-123',
         email: 'user@example.com',
       })
@@ -63,7 +101,7 @@ describe('Magic Link Authentication', () => {
       const db = createMockDb()
 
       // Mock: User doesn't exist
-      vi.mocked(db.selectFrom('users').select(['id', 'email']).where('email', '=', 'nonexistent@example.com').executeTakeFirst).mockResolvedValue(undefined)
+      db._mockExecuteTakeFirst.mockResolvedValueOnce(undefined)
 
       const result = await requestMagicLink(db, 'nonexistent@example.com')
 
@@ -72,20 +110,21 @@ describe('Magic Link Authentication', () => {
     })
 
     it('should not reveal user existence through response structure', async () => {
-      const db = createMockDb()
+      const db1 = createMockDb()
+      const db2 = createMockDb()
 
       // Mock non-existent user
-      vi.mocked(db.selectFrom('users').select(['id', 'email']).where('email', '=', 'nonexistent@example.com').executeTakeFirst).mockResolvedValue(undefined)
+      db1._mockExecuteTakeFirst.mockResolvedValueOnce(undefined)
 
-      const result1 = await requestMagicLink(db, 'nonexistent@example.com')
+      const result1 = await requestMagicLink(db1, 'nonexistent@example.com')
 
       // Mock existing user
-      vi.mocked(db.selectFrom('users').select(['id', 'email']).where('email', '=', 'existing@example.com').executeTakeFirst).mockResolvedValue({
+      db2._mockExecuteTakeFirst.mockResolvedValueOnce({
         id: 'user-123',
         email: 'existing@example.com',
       })
 
-      const result2 = await requestMagicLink(db, 'existing@example.com')
+      const result2 = await requestMagicLink(db2, 'existing@example.com')
 
       // Both responses should have identical structure
       expect(result1).toHaveProperty('success')
@@ -107,7 +146,7 @@ describe('Magic Link Authentication', () => {
       const mockCallback = vi.fn()
 
       // Mock: User exists
-      vi.mocked(db.selectFrom('users').select(['id', 'email']).where('email', '=', 'user@example.com').executeTakeFirst).mockResolvedValue({
+      db._mockExecuteTakeFirst.mockResolvedValueOnce({
         id: 'user-123',
         email: 'user@example.com',
       })
@@ -127,7 +166,7 @@ describe('Magic Link Authentication', () => {
       const mockCallback = vi.fn()
 
       // Mock: User doesn't exist
-      vi.mocked(db.selectFrom('users').select(['id', 'email']).where('email', '=', 'nonexistent@example.com').executeTakeFirst).mockResolvedValue(undefined)
+      db._mockExecuteTakeFirst.mockResolvedValueOnce(undefined)
 
       await requestMagicLink(db, 'nonexistent@example.com', '/dashboard', mockCallback)
 
@@ -140,7 +179,7 @@ describe('Magic Link Authentication', () => {
       const mockCallback = vi.fn()
 
       // Mock: User exists
-      vi.mocked(db.selectFrom('users').select(['id', 'email']).where('email', '=', 'user@example.com').executeTakeFirst).mockResolvedValue({
+      db._mockExecuteTakeFirst.mockResolvedValueOnce({
         id: 'user-123',
         email: 'user@example.com',
       })
@@ -159,7 +198,7 @@ describe('Magic Link Authentication', () => {
       const db = createMockDb()
 
       // Mock: User exists
-      vi.mocked(db.selectFrom('users').select(['id', 'email']).where('email', '=', 'user@example.com').executeTakeFirst).mockResolvedValue({
+      db._mockExecuteTakeFirst.mockResolvedValueOnce({
         id: 'user-123',
         email: 'user@example.com',
       })
@@ -175,45 +214,33 @@ describe('Magic Link Authentication', () => {
     const validToken = 'valid-magic-link-token'
     const userId = 'user-123'
 
-    const setupValidTokenMocks = (db: Kysely<Database>) => {
+    const setupValidTokenMocks = (db: any) => {
       // Mock token lookup - valid token (expires 15 minutes from FIXED_TIME)
-      vi.mocked(db.selectFrom('magic_link_tokens').selectAll().where('token', '=', validToken).executeTakeFirst).mockResolvedValue({
-        token: validToken,
-        user_id: userId,
-        email: 'user@example.com',
-        return_to: '/dashboard',
-        expires_at: new Date(FIXED_TIME.getTime() + 900000), // 15 minutes from FIXED_TIME
-        created_at: FIXED_TIME,
-      })
+      db._mockExecuteTakeFirst
+        .mockResolvedValueOnce({
+          token: validToken,
+          user_id: userId,
+          email: 'user@example.com',
+          return_to: '/dashboard',
+          expires_at: new Date(FIXED_TIME.getTime() + 900000), // 15 minutes from FIXED_TIME
+          created_at: FIXED_TIME,
+        })
+        // Mock user lookup
+        .mockResolvedValueOnce({
+          id: userId,
+          email: 'user@example.com',
+          email_verified: false,
+          password_hash: null,
+          github_id: null,
+          google_id: null,
+          name: null,
+          avatar_url: null,
+          created_at: FIXED_TIME,
+          updated_at: FIXED_TIME,
+        })
 
-      // Mock user lookup
-      vi.mocked(db.selectFrom('users').selectAll().where('id', '=', userId).executeTakeFirst).mockResolvedValue({
-        id: userId,
-        email: 'user@example.com',
-        email_verified: false,
-        password_hash: null,
-        github_id: null,
-        google_id: null,
-        name: null,
-        avatar_url: null,
-        created_at: FIXED_TIME,
-        updated_at: FIXED_TIME,
-      })
-
-      // Mock delete token
-      vi.mocked(db.deleteFrom('magic_link_tokens').where('token', '=', validToken).execute).mockResolvedValue({
-        numDeletedRows: BigInt(1),
-      } as any)
-
-      // Mock update user email_verified
-      vi.mocked(db.updateTable('users').set({ email_verified: true }).where('id', '=', userId).execute).mockResolvedValue({
-        numUpdatedRows: BigInt(1),
-      } as any)
-
-      // Mock session creation (insertInto sessions)
-      vi.mocked(db.insertInto('sessions').values(expect.any(Object)).execute).mockResolvedValue({
-        insertId: BigInt(1),
-      } as any)
+      // Mock delete token, update user, insert session
+      db._mockExecute.mockResolvedValue({ numDeletedRows: BigInt(1), numUpdatedRows: BigInt(1) } as any)
     }
 
     it('should successfully consume valid magic link token', async () => {
@@ -253,7 +280,7 @@ describe('Magic Link Authentication', () => {
       const invalidToken = 'invalid-token'
 
       // Mock: Token doesn't exist
-      vi.mocked(mockDb.selectFrom('magic_link_tokens').selectAll().where('token', '=', invalidToken).executeTakeFirst).mockResolvedValue(undefined)
+      mockDb._mockExecuteTakeFirst.mockResolvedValueOnce(undefined)
 
       await expect(consumeMagicLink(mockDb, invalidToken)).rejects.toThrow('Invalid or expired magic link')
     })
@@ -263,7 +290,7 @@ describe('Magic Link Authentication', () => {
       const expiredToken = 'expired-token'
 
       // Mock: Token exists but is expired (15 minutes before FIXED_TIME)
-      vi.mocked(mockDb.selectFrom('magic_link_tokens').selectAll().where('token', '=', expiredToken).executeTakeFirst).mockResolvedValue({
+      mockDb._mockExecuteTakeFirst.mockResolvedValueOnce({
         token: expiredToken,
         user_id: userId,
         email: 'user@example.com',
@@ -273,9 +300,7 @@ describe('Magic Link Authentication', () => {
       })
 
       // Mock delete expired token
-      vi.mocked(mockDb.deleteFrom('magic_link_tokens').where('token', '=', expiredToken).execute).mockResolvedValue({
-        numDeletedRows: BigInt(1),
-      } as any)
+      mockDb._mockExecute.mockResolvedValueOnce({ numDeletedRows: BigInt(1) } as any)
 
       await expect(consumeMagicLink(mockDb, expiredToken)).rejects.toThrow('Magic link has expired')
     })
@@ -290,22 +315,20 @@ describe('Magic Link Authentication', () => {
       const orphanedToken = 'orphaned-token'
 
       // Mock: Token exists (valid, not expired)
-      vi.mocked(mockDb.selectFrom('magic_link_tokens').selectAll().where('token', '=', orphanedToken).executeTakeFirst).mockResolvedValue({
-        token: orphanedToken,
-        user_id: 'non-existent-user',
-        email: 'user@example.com',
-        return_to: null,
-        expires_at: new Date(FIXED_TIME.getTime() + 900000), // 15 minutes from FIXED_TIME
-        created_at: FIXED_TIME,
-      })
-
-      // Mock: User doesn't exist
-      vi.mocked(mockDb.selectFrom('users').selectAll().where('id', '=', 'non-existent-user').executeTakeFirst).mockResolvedValue(undefined)
+      mockDb._mockExecuteTakeFirst
+        .mockResolvedValueOnce({
+          token: orphanedToken,
+          user_id: 'non-existent-user',
+          email: 'user@example.com',
+          return_to: null,
+          expires_at: new Date(FIXED_TIME.getTime() + 900000), // 15 minutes from FIXED_TIME
+          created_at: FIXED_TIME,
+        })
+        // Mock: User doesn't exist
+        .mockResolvedValueOnce(undefined)
 
       // Mock delete orphaned token
-      vi.mocked(mockDb.deleteFrom('magic_link_tokens').where('token', '=', orphanedToken).execute).mockResolvedValue({
-        numDeletedRows: BigInt(1),
-      } as any)
+      mockDb._mockExecute.mockResolvedValueOnce({ numDeletedRows: BigInt(1) } as any)
 
       await expect(consumeMagicLink(mockDb, orphanedToken)).rejects.toThrow('User not found')
     })
@@ -313,39 +336,31 @@ describe('Magic Link Authentication', () => {
     it('should not update email_verified if already verified', async () => {
       const mockDb = createMockDb()
       
-      // Mock token lookup
-      vi.mocked(mockDb.selectFrom('magic_link_tokens').selectAll().where('token', '=', validToken).executeTakeFirst).mockResolvedValue({
-        token: validToken,
-        user_id: userId,
-        email: 'user@example.com',
-        return_to: '/dashboard',
-        expires_at: new Date(FIXED_TIME.getTime() + 900000),
-        created_at: FIXED_TIME,
-      })
+      // Mock token lookup and user with email already verified
+      mockDb._mockExecuteTakeFirst
+        .mockResolvedValueOnce({
+          token: validToken,
+          user_id: userId,
+          email: 'user@example.com',
+          return_to: '/dashboard',
+          expires_at: new Date(FIXED_TIME.getTime() + 900000),
+          created_at: FIXED_TIME,
+        })
+        .mockResolvedValueOnce({
+          id: userId,
+          email: 'user@example.com',
+          email_verified: true, // Already verified
+          password_hash: null,
+          github_id: null,
+          google_id: null,
+          name: null,
+          avatar_url: null,
+          created_at: FIXED_TIME,
+          updated_at: FIXED_TIME,
+        })
 
-      // Mock user with email already verified
-      vi.mocked(mockDb.selectFrom('users').selectAll().where('id', '=', userId).executeTakeFirst).mockResolvedValue({
-        id: userId,
-        email: 'user@example.com',
-        email_verified: true, // Already verified
-        password_hash: null,
-        github_id: null,
-        google_id: null,
-        name: null,
-        avatar_url: null,
-        created_at: FIXED_TIME,
-        updated_at: FIXED_TIME,
-      })
-
-      // Mock delete token
-      vi.mocked(mockDb.deleteFrom('magic_link_tokens').where('token', '=', validToken).execute).mockResolvedValue({
-        numDeletedRows: BigInt(1),
-      } as any)
-
-      // Mock session creation
-      vi.mocked(mockDb.insertInto('sessions').values(expect.any(Object)).execute).mockResolvedValue({
-        insertId: BigInt(1),
-      } as any)
+      // Mock delete token and session creation
+      mockDb._mockExecute.mockResolvedValue({ numDeletedRows: BigInt(1) } as any)
 
       await consumeMagicLink(mockDb, validToken)
 
@@ -365,44 +380,31 @@ describe('Magic Link Authentication', () => {
     it('should return null returnTo if not set in token', async () => {
       const mockDb = createMockDb()
       
-      // Mock token without returnTo
-      vi.mocked(mockDb.selectFrom('magic_link_tokens').selectAll().where('token', '=', validToken).executeTakeFirst).mockResolvedValue({
-        token: validToken,
-        user_id: userId,
-        email: 'user@example.com',
-        return_to: null,
-        expires_at: new Date(FIXED_TIME.getTime() + 900000),
-        created_at: FIXED_TIME,
-      })
+      // Mock token without returnTo and user lookup
+      mockDb._mockExecuteTakeFirst
+        .mockResolvedValueOnce({
+          token: validToken,
+          user_id: userId,
+          email: 'user@example.com',
+          return_to: null,
+          expires_at: new Date(FIXED_TIME.getTime() + 900000),
+          created_at: FIXED_TIME,
+        })
+        .mockResolvedValueOnce({
+          id: userId,
+          email: 'user@example.com',
+          email_verified: false,
+          password_hash: null,
+          github_id: null,
+          google_id: null,
+          name: null,
+          avatar_url: null,
+          created_at: FIXED_TIME,
+          updated_at: FIXED_TIME,
+        })
 
-      // Mock user lookup
-      vi.mocked(mockDb.selectFrom('users').selectAll().where('id', '=', userId).executeTakeFirst).mockResolvedValue({
-        id: userId,
-        email: 'user@example.com',
-        email_verified: false,
-        password_hash: null,
-        github_id: null,
-        google_id: null,
-        name: null,
-        avatar_url: null,
-        created_at: FIXED_TIME,
-        updated_at: FIXED_TIME,
-      })
-
-      // Mock delete token
-      vi.mocked(mockDb.deleteFrom('magic_link_tokens').where('token', '=', validToken).execute).mockResolvedValue({
-        numDeletedRows: BigInt(1),
-      } as any)
-
-      // Mock update user
-      vi.mocked(mockDb.updateTable('users').set({ email_verified: true }).where('id', '=', userId).execute).mockResolvedValue({
-        numUpdatedRows: BigInt(1),
-      } as any)
-
-      // Mock session creation
-      vi.mocked(mockDb.insertInto('sessions').values(expect.any(Object)).execute).mockResolvedValue({
-        insertId: BigInt(1),
-      } as any)
+      // Mock delete token, update user, session creation
+      mockDb._mockExecute.mockResolvedValue({ numDeletedRows: BigInt(1), numUpdatedRows: BigInt(1) } as any)
 
       const result = await consumeMagicLink(mockDb, validToken)
 
@@ -415,7 +417,7 @@ describe('Magic Link Authentication', () => {
       const db = createMockDb()
 
       // Mock delete result
-      vi.mocked(db.deleteFrom('magic_link_tokens').where('expires_at', '<=', expect.any(Date)).executeTakeFirst).mockResolvedValue({
+      db._mockExecuteTakeFirst.mockResolvedValueOnce({
         numDeletedRows: BigInt(5),
       } as any)
 
@@ -429,7 +431,7 @@ describe('Magic Link Authentication', () => {
       const db = createMockDb()
 
       // Mock delete result - no rows deleted
-      vi.mocked(db.deleteFrom('magic_link_tokens').where('expires_at', '<=', expect.any(Date)).executeTakeFirst).mockResolvedValue({
+      db._mockExecuteTakeFirst.mockResolvedValueOnce({
         numDeletedRows: BigInt(0),
       } as any)
 
