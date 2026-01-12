@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Automatic Cloudflare Workers PBKDF2 Iteration Count** - ClearAuth now automatically detects Cloudflare Workers environment and uses 100,000 PBKDF2 iterations (instead of 600,000) to comply with Cloudflare's WebCrypto PBKDF2 iteration limit. This prevents "iteration counts above 100000 are not supported" errors when using email/password authentication on Cloudflare Workers.
+  - Runtime environment detection for Cloudflare Workers
+  - Automatic fallback to 100,000 iterations on Cloudflare Workers
+  - Maintains 600,000 iterations (OWASP recommended) for other environments
+  - No configuration required - works automatically
+  - Updated documentation in `CLOUDFLARE.md` with detailed explanation
+  - Added JSDoc comments explaining the automatic detection
+
 ## [0.4.0] - 2026-01-12
 
 ### Added

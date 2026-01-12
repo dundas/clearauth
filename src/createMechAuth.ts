@@ -158,6 +158,8 @@ function isSimpleDatabaseConfig(db: unknown): db is SimpleDatabaseConfig {
  * ```ts
  * import { createClearAuth, defaultSessionConfig } from 'clearauth'
  *
+ * // ClearAuth automatically detects Cloudflare Workers and uses 100,000 PBKDF2 iterations
+ * // (instead of the default 600,000) to comply with Cloudflare's WebCrypto limits
  * const config = createClearAuth({
  *   secret: env.AUTH_SECRET,
  *   baseUrl: 'https://yourdomain.com',
