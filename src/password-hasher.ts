@@ -6,10 +6,21 @@ export interface PasswordHasher {
   verify(hash: string, password: string): Promise<boolean>
 }
 
+/**
+ * Options for PBKDF2 password hasher
+ * 
+ * Note: ClearAuth automatically detects Cloudflare Workers and uses 100,000 iterations
+ * (instead of 600,000) to comply with Cloudflare's WebCrypto PBKDF2 iteration limit.
+ * You can override this by explicitly setting the iterations option.
+ */
 export type Pbkdf2PasswordHasherOptions = {
+  /** Number of PBKDF2 iterations. Defaults to 600,000 (OWASP recommended) or 100,000 for Cloudflare Workers */
   iterations?: number
+  /** Hash algorithm. Defaults to 'SHA-256' */
   hash?: 'SHA-256' | 'SHA-512'
+  /** Salt length in bytes. Defaults to 16 */
   saltLength?: number
+  /** Derived key length in bytes. Defaults to 32 */
   keyLength?: number
 }
 
@@ -59,8 +70,29 @@ async function pbkdf2DeriveKeyBytes(params: {
   return new Uint8Array(bits)
 }
 
+/**
+ * Detect if running in Cloudflare Workers environment
+ * Cloudflare Workers have a PBKDF2 iteration limit of 100,000
+ */
+function isCloudflareWorkers(): boolean {
+  // Check for Cloudflare Workers-specific globals
+  // Workers have 'caches' but no 'window' or 'process'
+  if (typeof globalThis === 'undefined') return false
+  
+  const hasWorkersGlobals = 'caches' in globalThis && 
+                           'Request' in globalThis && 
+                           'Response' in globalThis
+  const isNotBrowser = typeof window === 'undefined'
+  const isNotNode = typeof process === 'undefined' || !process.versions?.node
+  
+  return hasWorkersGlobals && isNotBrowser && isNotNode
+}
+
 export function createPbkdf2PasswordHasher(options: Pbkdf2PasswordHasherOptions = {}): PasswordHasher {
-  const iterations = options.iterations ?? 600_000
+  // Cloudflare Workers limit PBKDF2 to 100,000 iterations
+  // Use 100,000 for Cloudflare, 600,000 (OWASP recommended) for other environments
+  const defaultIterations = isCloudflareWorkers() ? 100_000 : 600_000
+  const iterations = options.iterations ?? defaultIterations
   const hash = options.hash ?? 'SHA-256'
   const saltLength = options.saltLength ?? 16
   const keyLength = options.keyLength ?? 32

@@ -128,6 +128,35 @@ The edge entrypoint uses **PBKDF2** (WebCrypto) for password hashing, which is c
 
 **Note:** Users registered on edge (PBKDF2) and Node.js (Argon2id) will have different hash formats. Plan your deployment accordingly.
 
+### Cloudflare Workers PBKDF2 Iteration Count
+
+**ClearAuth automatically detects Cloudflare Workers** and adjusts the PBKDF2 iteration count to comply with Cloudflare's WebCrypto limitations:
+
+- **Cloudflare Workers**: 100,000 iterations (Cloudflare's maximum)
+- **Other environments**: 600,000 iterations (OWASP recommended)
+
+This happens automatically - **no configuration needed**. ClearAuth detects the Cloudflare Workers environment at runtime and uses the appropriate iteration count.
+
+If you need to override this (not recommended), you can explicitly set the iteration count:
+
+```typescript
+import { createClearAuth, createPbkdf2PasswordHasher } from 'clearauth/edge';
+
+const config = createClearAuth({
+  secret: env.AUTH_SECRET,
+  baseUrl: 'https://myapp.workers.dev',
+  database: {
+    appId: env.MECH_APP_ID,
+    apiKey: env.MECH_API_KEY,
+  },
+  // Override automatic detection (not recommended)
+  passwordHasher: createPbkdf2PasswordHasher({ iterations: 100_000 }),
+});
+```
+
+**Why 100,000 iterations?**
+Cloudflare Workers' WebCrypto implementation limits PBKDF2 to 100,000 iterations. While lower than OWASP's recommended 600,000, it's still secure and complies with NIST SP 800-132 minimum requirements (10,000 iterations).
+
 ## Environment Variables
 
 Set these secrets using `wrangler secret put`:
