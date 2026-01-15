@@ -5,8 +5,8 @@
  * Challenges are one-time use and expire after 10 minutes.
  */
 
-import type { ClearAuthConfig } from '../types'
-import type { ChallengeResponse } from './types'
+import type { ClearAuthConfig } from '../types.js'
+import type { ChallengeResponse } from './types.js'
 
 /**
  * Challenge TTL in milliseconds (10 minutes)
@@ -143,7 +143,7 @@ export async function storeChallenge(
   const createdAt = new Date(timestamp)
   const expiresAt = new Date(timestamp + CHALLENGE_TTL_MS)
 
-  await config.db
+  await config.database
     .insertInto('challenges')
     .values({
       nonce,
@@ -188,7 +188,7 @@ export async function verifyChallenge(
   }
 
   // Fetch challenge from database
-  const storedChallenge = await config.db
+  const storedChallenge = await config.database
     .selectFrom('challenges')
     .selectAll()
     .where('nonce', '=', nonce)
@@ -202,7 +202,7 @@ export async function verifyChallenge(
   const now = new Date()
   if (storedChallenge.expires_at <= now) {
     // Delete expired challenge
-    await config.db.deleteFrom('challenges').where('nonce', '=', nonce).execute()
+    await config.database.deleteFrom('challenges').where('nonce', '=', nonce).execute()
     return false
   }
 
@@ -212,7 +212,7 @@ export async function verifyChallenge(
   }
 
   // Delete challenge (one-time use)
-  await config.db.deleteFrom('challenges').where('nonce', '=', nonce).execute()
+  await config.database.deleteFrom('challenges').where('nonce', '=', nonce).execute()
 
   return true
 }
@@ -235,7 +235,7 @@ export async function verifyChallenge(
 export async function cleanupExpiredChallenges(config: ClearAuthConfig): Promise<number> {
   const now = new Date()
 
-  const result = await config.db
+  const result = await config.database
     .deleteFrom('challenges')
     .where('expires_at', '<=', now)
     .executeTakeFirst()

@@ -55,7 +55,9 @@ function createMockDb(): Kysely<Database> {
 
 function createMockConfig(): ClearAuthConfig {
   return {
-    db: createMockDb(),
+    database: createMockDb(),
+    secret: 'test-secret',
+    baseUrl: 'https://example.com',
     session: {
       expiresIn: 30 * 24 * 60 * 60, // 30 days
       cookieName: 'session',
@@ -115,7 +117,7 @@ describe('Device Authentication Handlers', () => {
 
       // Extract nonce and verify stored
       const nonce = body.challenge.split('|')[0]
-      const storedChallenge = await config.db
+      const storedChallenge = await config.database
         .selectFrom('challenges')
         .selectAll()
         .where('nonce', '=', nonce!)
@@ -155,7 +157,7 @@ describe('Device Authentication Handlers', () => {
     it('should return 500 on database error', async () => {
       // Create config with failing database
       const failingConfig = {
-        db: {
+        database: {
           insertInto: () => ({
             values: () => ({
               execute: async () => {
@@ -164,6 +166,8 @@ describe('Device Authentication Handlers', () => {
             }),
           }),
         },
+        secret: 'test-secret',
+        baseUrl: 'https://example.com',
         session: config.session,
       } as any as ClearAuthConfig
 

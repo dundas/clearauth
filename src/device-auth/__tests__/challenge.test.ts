@@ -88,7 +88,9 @@ function createMockDb(): Kysely<Database> {
 
 function createMockConfig(): ClearAuthConfig {
   return {
-    db: createMockDb(),
+    database: createMockDb(),
+    secret: 'test-secret',
+    baseUrl: 'https://example.com',
     session: {
       expiresIn: 30 * 24 * 60 * 60, // 30 days
       cookieName: 'session',
@@ -242,7 +244,7 @@ describe('Challenge Storage', () => {
       expect(timestamp).toBeTruthy()
 
       // Verify stored challenge has correct expiration
-      const storedChallenge = await config.db
+      const storedChallenge = await config.database
         .selectFrom('challenges')
         .selectAll()
         .where('nonce', '=', nonce!)

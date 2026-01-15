@@ -11,9 +11,9 @@
  * - POST /auth/device/revoke - Revoke a device
  */
 
-import type { ClearAuthConfig } from '../types'
-import { generateChallenge, storeChallenge } from './challenge'
-import type { ChallengeResponse } from './types'
+import type { ClearAuthConfig } from '../types.js'
+import { generateChallenge, storeChallenge } from './challenge.js'
+import type { ChallengeResponse } from './types.js'
 
 /**
  * Error response

@@ -5,7 +5,7 @@
  * Supports Web3 wallets (MetaMask, SeedID), iOS (Secure Enclave), and Android (KeyStore).
  */
 
-import type { Device, Challenge as DatabaseChallenge } from '../database/schema'
+import type { Device, Challenge as DatabaseChallenge } from '../database/schema.js'
 
 /**
  * Device Platform Types
