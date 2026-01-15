@@ -319,42 +319,42 @@ PR #27 (Task 9.0 - Documentation)
 **Effort:** Medium
 **Depends on:** PR #22
 
-- [ ] **5.1** Implement request signature extraction
+- [x] **5.1** Implement request signature extraction
   - **File:** `src/device-auth/middleware.ts` (create)
   - **Action:** extractSignatureHeaders() - extract Authorization, X-Signature, X-Challenge headers
   - **Test:** `src/device-auth/__tests__/middleware.test.ts` (8+ assertions: header extraction, missing headers)
   - **Commit:** `feat(device-auth): implement signature header extraction`
   - **Agent:** `reliability-engineer`
 
-- [ ] **5.2** Implement request payload reconstruction
+- [x] **5.2** Implement request payload reconstruction
   - **File:** `src/device-auth/middleware.ts` (modify)
   - **Action:** reconstructSignedPayload() - hash method + path + body + challenge for signature verification
   - **Test:** `src/device-auth/__tests__/middleware.test.ts` (6+ assertions: payload consistency, hashing)
   - **Commit:** `feat(device-auth): implement request payload reconstruction`
   - **Agent:** `reliability-engineer`
 
-- [ ] **5.3** Implement signature verification middleware
+- [x] **5.3** Implement signature verification middleware
   - **File:** `src/device-auth/middleware.ts` (modify)
   - **Action:** verifyDeviceSignature() middleware - verify JWT token, get device public key, verify request signature
   - **Test:** `src/device-auth/__tests__/middleware.test.ts` (15+ assertions: valid requests, invalid sigs, expired challenges)
   - **Commit:** `feat(device-auth): implement signature verification middleware`
   - **Agent:** `reliability-engineer`
 
-- [ ] **5.4** Add challenge freshness validation
+- [x] **5.4** Add challenge freshness validation
   - **File:** `src/device-auth/middleware.ts` (modify)
   - **Action:** validateChallengeFreshness() - check challenge timestamp within 60 seconds
   - **Test:** `src/device-auth/__tests__/middleware.test.ts` (5+ assertions: fresh, expired, tampered)
   - **Commit:** `feat(device-auth): add challenge freshness validation`
   - **Agent:** `reliability-engineer`
 
-- [ ] **5.5** Add device status validation
+- [x] **5.5** Add device status validation
   - **File:** `src/device-auth/middleware.ts` (modify)
   - **Action:** Check device.status === 'active', reject revoked devices
   - **Test:** `src/device-auth/__tests__/middleware.test.ts` (4+ assertions: active, revoked)
   - **Commit:** `feat(device-auth): add device status validation`
   - **Agent:** `reliability-engineer`
 
-- [ ] **5.6** Run tests and build
+- [x] **5.6** Run tests and build
   - **File:** N/A
   - **Action:** Run all tests, verify middleware works with Web3 flow
   - **Test:** All 443+ tests passing (25 new middleware tests)
