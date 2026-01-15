@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { isValidRefreshToken } from '../schema.js'
-import type { RefreshToken } from '../schema.js'
+import { isValidRefreshToken, isValidDevice, isValidChallenge } from '../schema.js'
+import type { RefreshToken, Device, Challenge } from '../schema.js'
 
 describe('isValidRefreshToken', () => {
   const baseToken: RefreshToken = {
@@ -81,5 +81,101 @@ describe('isValidRefreshToken', () => {
     }
     const result = isValidRefreshToken(noNameToken)
     expect(result).toBe(true)
+  })
+})
+
+describe('isValidDevice', () => {
+  const baseDevice: Device = {
+    id: 'device-uuid-123',
+    device_id: 'dev_web3_abc123',
+    user_id: 'user-uuid-456',
+    platform: 'web3',
+    public_key: '0x742d35Cc6634C0532925a3b844Bc9e7595f42a0d',
+    wallet_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f42a0d',
+    key_algorithm: 'secp256k1',
+    status: 'active',
+    registered_at: new Date('2026-01-15T00:00:00Z'),
+    last_used_at: null,
+    created_at: new Date('2026-01-15T00:00:00Z'),
+  }
+
+  it('should return true for active device', () => {
+    const result = isValidDevice(baseDevice)
+    expect(result).toBe(true)
+  })
+
+  it('should return false for revoked device', () => {
+    const revokedDevice: Device = {
+      ...baseDevice,
+      status: 'revoked',
+    }
+    const result = isValidDevice(revokedDevice)
+    expect(result).toBe(false)
+  })
+
+  it('should return true for iOS device', () => {
+    const iosDevice: Device = {
+      ...baseDevice,
+      platform: 'ios',
+      key_algorithm: 'P-256',
+      wallet_address: null,
+    }
+    const result = isValidDevice(iosDevice)
+    expect(result).toBe(true)
+  })
+
+  it('should return true for Android device', () => {
+    const androidDevice: Device = {
+      ...baseDevice,
+      platform: 'android',
+      key_algorithm: 'P-256',
+      wallet_address: null,
+    }
+    const result = isValidDevice(androidDevice)
+    expect(result).toBe(true)
+  })
+
+  it('should return true for device with last_used_at', () => {
+    const usedDevice: Device = {
+      ...baseDevice,
+      last_used_at: new Date('2026-01-15T12:00:00Z'),
+    }
+    const result = isValidDevice(usedDevice)
+    expect(result).toBe(true)
+  })
+})
+
+describe('isValidChallenge', () => {
+  it('should return true for non-expired challenge', () => {
+    const challenge: Challenge = {
+      nonce: 'abc123def456',
+      challenge: 'abc123def456|1705326960000',
+      created_at: new Date(),
+      expires_at: new Date(Date.now() + 600000), // 10 minutes from now
+    }
+    const result = isValidChallenge(challenge)
+    expect(result).toBe(true)
+  })
+
+  it('should return false for expired challenge', () => {
+    const expiredChallenge: Challenge = {
+      nonce: 'xyz789',
+      challenge: 'xyz789|1705326960000',
+      created_at: new Date(Date.now() - 700000), // 11.67 minutes ago
+      expires_at: new Date(Date.now() - 100000), // 1.67 minutes ago
+    }
+    const result = isValidChallenge(expiredChallenge)
+    expect(result).toBe(false)
+  })
+
+  it('should return false for challenge expiring right now', () => {
+    const expiringChallenge: Challenge = {
+      nonce: 'expiring123',
+      challenge: 'expiring123|1705326960000',
+      created_at: new Date(Date.now() - 600000),
+      expires_at: new Date(Date.now() - 100), // 100ms ago
+    }
+    const result = isValidChallenge(expiringChallenge)
+    expect(result).toBe(false)
   })
 })
