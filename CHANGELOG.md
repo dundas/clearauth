@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-01-15
+
+### Added
+
+- **JWT Bearer Token Authentication** - Complete stateless authentication for CLI tools, mobile apps, and API clients
+  - **ES256 Algorithm** - ECDSA with P-256 curve for edge-optimized signing/verification
+  - **Access Tokens** - 15-minute stateless JWT tokens (configurable TTL)
+  - **Refresh Tokens** - 30-day revocable tokens stored in database (configurable TTL)
+  - **Token Rotation** - Automatic refresh token rotation for enhanced security
+  - **Revocation Support** - Soft-delete revocation with audit trail via `revoked_at` timestamp
+  - **OAuth 2.0 Compliant** - Token responses follow RFC 6749 specification
+  - **Edge Compatible** - Web Crypto API only, works in Cloudflare Workers, Vercel Edge, browsers, Node.js
+  - **Zero Dependencies Added** - Uses existing `jose` library (6.1.3)
+
+  **New HTTP Endpoints:**
+  - `POST /auth/token` - Exchange credentials for JWT access + refresh token pair
+  - `POST /auth/refresh` - Rotate refresh token and get new access token
+  - `POST /auth/revoke` - Revoke refresh token (logout)
+
+  **New Functions:**
+  - `createAccessToken()` - Generate signed JWT access token
+  - `verifyAccessToken()` - Verify and decode JWT access token
+  - `parseBearerToken()` - Extract Bearer token from Authorization header
+  - `validateBearerToken()` - Validate Bearer token from request
+  - `createRefreshToken()` - Create revocable refresh token in database
+  - `rotateRefreshToken()` - Securely rotate refresh token
+  - `revokeRefreshToken()` - Revoke refresh token by ID
+  - `revokeAllUserRefreshTokens()` - Revoke all tokens for a user
+  - `cleanupExpiredTokens()` - Remove expired tokens from database
+
+  **Database Schema:**
+  - New `refresh_tokens` table with SHA-256 hashed tokens
+  - Migration scripts: `006_create_refresh_tokens.sql` and `rollback_006.sql`
+  - Indexes for performance: `idx_refresh_tokens_user`, `idx_refresh_tokens_expires`
+
+  **Entrypoint:**
+  - New `clearauth/jwt` submodule export for JWT-specific imports
+  - All JWT types and functions exported from main `clearauth` package
+
+  **Documentation:**
+  - Comprehensive README section with ES256 key generation instructions
+  - Usage examples for Node.js, Cloudflare Workers, CLI/mobile apps
+  - API reference table with all endpoints and functions
+  - Security considerations and best practices
+
+  **Testing:**
+  - 89 new comprehensive tests (31 signer + 36 refresh tokens + 22 handlers)
+  - 100% code coverage for all JWT modules
+  - All 320 tests passing
+
 ### Fixed
 
 - **Automatic Cloudflare Workers PBKDF2 Iteration Count** - ClearAuth now automatically detects Cloudflare Workers environment and uses 100,000 PBKDF2 iterations (instead of 600,000) to comply with Cloudflare's WebCrypto PBKDF2 iteration limit. This prevents "iteration counts above 100000 are not supported" errors when using email/password authentication on Cloudflare Workers.

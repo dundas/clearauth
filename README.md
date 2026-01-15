@@ -237,6 +237,349 @@ export function LoginButton() {
 }
 ```
 
+## JWT Bearer Token Authentication
+
+ClearAuth now supports stateless JWT Bearer token authentication for API and CLI access. This provides an alternative to cookie-based sessions for scenarios where cookies aren't suitable (mobile apps, CLIs, server-to-server).
+
+### Features
+
+- **Stateless Authentication** - No database lookup for access tokens (fast API auth)
+- **Token Rotation** - Automatic refresh token rotation prevents replay attacks
+- **Revocation Support** - Revoke individual tokens or all user tokens
+- **ES256 Algorithm** - ECDSA with P-256 curve (edge-optimized, industry standard)
+- **OAuth 2.0 Compliant** - Standard token response format
+- **Edge Compatible** - Works in Cloudflare Workers, Vercel Edge, Node.js
+
+### Installation
+
+JWT support is included in `clearauth@0.5.0` and above:
+
+```bash
+npm install clearauth@latest
+```
+
+You can use the JWT functions from the main entrypoint or the dedicated JWT entrypoint:
+
+```ts
+// From main entrypoint
+import { createAccessToken, validateBearerToken } from 'clearauth'
+
+// Or from JWT-specific entrypoint
+import { createAccessToken, validateBearerToken } from 'clearauth/jwt'
+```
+
+### Quick Start
+
+#### 1. Generate ES256 Keys
+
+First, generate an ES256 key pair for signing JWTs:
+
+```bash
+# Generate private key
+openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem
+
+# Extract public key
+openssl ec -in private-key.pem -pubout -out public-key.pem
+```
+
+Or use Node.js:
+
+```ts
+import { generateKeyPair, exportPKCS8, exportSPKI } from 'jose'
+
+const { privateKey, publicKey } = await generateKeyPair('ES256', { extractable: true })
+const pemPrivateKey = await exportPKCS8(privateKey)
+const pemPublicKey = await exportSPKI(publicKey)
+
+console.log('Private key:', pemPrivateKey)
+console.log('Public key:', pemPublicKey)
+```
+
+#### 2. Configure JWT
+
+```ts
+import { createClearAuthNode } from 'clearauth/node'
+
+export const authConfig = createClearAuthNode({
+  secret: process.env.AUTH_SECRET!,
+  baseUrl: process.env.BASE_URL!,
+  database: {
+    appId: process.env.MECH_APP_ID!,
+    apiKey: process.env.MECH_API_KEY!,
+  },
+  jwt: {
+    privateKey: process.env.JWT_PRIVATE_KEY!,  // PEM or JWK format
+    publicKey: process.env.JWT_PUBLIC_KEY!,     // PEM or JWK format
+    accessTokenTTL: 900,      // 15 minutes (default)
+    refreshTokenTTL: 2592000, // 30 days (default)
+    issuer: 'https://yourapp.com',      // Optional
+    audience: 'https://api.yourapp.com', // Optional
+  },
+})
+```
+
+#### 3. Issue Tokens
+
+Use the built-in token endpoint to exchange credentials for a JWT pair:
+
+```ts
+// POST /auth/token
+import { handleTokenRequest } from 'clearauth'
+
+const request = new Request('https://api.example.com/auth/token', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    userId: user.id,
+    email: user.email,
+    deviceName: 'iPhone 15 Pro', // optional
+  }),
+})
+
+const response = await handleTokenRequest(request, db, authConfig.jwt)
+const data = await response.json()
+
+// Response:
+// {
+//   "accessToken": "eyJhbGc...",
+//   "refreshToken": "rt_...",
+//   "tokenType": "Bearer",
+//   "expiresIn": 900,
+//   "refreshTokenId": "token-uuid"
+// }
+```
+
+Or create tokens directly:
+
+```ts
+import { createAccessToken, createRefreshToken } from 'clearauth/jwt'
+
+// Create access token (JWT)
+const accessToken = await createAccessToken(
+  { sub: user.id, email: user.email },
+  authConfig.jwt
+)
+
+// Create refresh token (opaque, stored in DB)
+const { token: refreshToken, record } = await createRefreshToken(
+  db,
+  user.id,
+  new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+  'Mobile App' // optional device name
+)
+```
+
+#### 4. Validate Bearer Tokens
+
+```ts
+import { validateBearerToken } from 'clearauth/jwt'
+
+// In your API route handler
+const payload = await validateBearerToken(request, authConfig.jwt)
+
+if (!payload) {
+  return new Response('Unauthorized', { status: 401 })
+}
+
+console.log('User ID:', payload.sub)
+console.log('Email:', payload.email)
+console.log('Expires:', new Date(payload.exp * 1000))
+```
+
+#### 5. Refresh Tokens
+
+```ts
+import { handleRefreshRequest } from 'clearauth/jwt'
+
+// POST /auth/refresh
+const request = new Request('https://api.example.com/auth/refresh', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    refreshToken: oldRefreshToken,
+  }),
+})
+
+const response = await handleRefreshRequest(request, db, authConfig.jwt)
+const data = await response.json()
+
+// Response: new access token + new refresh token (old one is revoked)
+// {
+//   "accessToken": "eyJhbGc...",
+//   "refreshToken": "rt_new...",
+//   "tokenType": "Bearer",
+//   "expiresIn": 900,
+//   "refreshTokenId": "new-token-uuid"
+// }
+```
+
+#### 6. Revoke Tokens
+
+```ts
+import { handleRevokeRequest, revokeAllUserRefreshTokens } from 'clearauth/jwt'
+
+// Revoke a single refresh token
+const request = new Request('https://api.example.com/auth/revoke', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    refreshToken: tokenToRevoke,
+  }),
+})
+
+await handleRevokeRequest(request, db)
+
+// Or revoke all user tokens (emergency logout)
+const count = await revokeAllUserRefreshTokens(db, userId)
+console.log(`Revoked ${count} tokens`)
+```
+
+### Usage with Cloudflare Workers
+
+JWT authentication works seamlessly in Cloudflare Workers:
+
+```ts
+import { validateBearerToken, createMechKysely } from 'clearauth/edge'
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const db = createMechKysely({ appId: env.MECH_APP_ID, apiKey: env.MECH_API_KEY })
+
+    const jwtConfig = {
+      privateKey: env.JWT_PRIVATE_KEY,
+      publicKey: env.JWT_PUBLIC_KEY,
+      algorithm: 'ES256' as const,
+    }
+
+    // Validate Bearer token
+    const payload = await validateBearerToken(request, jwtConfig)
+
+    if (!payload) {
+      return new Response('Unauthorized', { status: 401 })
+    }
+
+    // User is authenticated
+    return new Response(`Hello ${payload.email}`)
+  }
+}
+```
+
+### CLI / Mobile App Usage
+
+For CLI tools or mobile apps, store the refresh token securely and use it to get new access tokens:
+
+```ts
+// CLI app login flow
+const loginResponse = await fetch('https://api.example.com/auth/token', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    userId: user.id,
+    email: user.email,
+    deviceName: 'CLI Tool v1.0',
+  }),
+})
+
+const { accessToken, refreshToken } = await loginResponse.json()
+
+// Store refresh token securely (OS keychain, encrypted file, etc.)
+await secureStorage.set('refresh_token', refreshToken)
+
+// Use access token for API requests
+const apiResponse = await fetch('https://api.example.com/data', {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+  },
+})
+
+// When access token expires, refresh it
+if (apiResponse.status === 401) {
+  const refreshResponse = await fetch('https://api.example.com/auth/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      refreshToken: await secureStorage.get('refresh_token'),
+    }),
+  })
+
+  const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+    await refreshResponse.json()
+
+  // Update stored tokens
+  await secureStorage.set('refresh_token', newRefreshToken)
+
+  // Retry API request with new access token
+  const retryResponse = await fetch('https://api.example.com/data', {
+    headers: {
+      'Authorization': `Bearer ${newAccessToken}`,
+    },
+  })
+}
+```
+
+### API Reference
+
+#### JWT Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `privateKey` | `string` | Required | ES256 private key (PEM or JWK format) |
+| `publicKey` | `string` | Required | ES256 public key (PEM or JWK format) |
+| `accessTokenTTL` | `number` | `900` | Access token TTL in seconds (15 min) |
+| `refreshTokenTTL` | `number` | `2592000` | Refresh token TTL in seconds (30 days) |
+| `algorithm` | `'ES256'` | `'ES256'` | JWT signing algorithm (only ES256 supported in v1) |
+| `issuer` | `string` | Optional | JWT issuer claim (iss) |
+| `audience` | `string` | Optional | JWT audience claim (aud) |
+
+#### Token Endpoints
+
+- **`POST /auth/token`** - Exchange credentials for JWT pair
+- **`POST /auth/refresh`** - Rotate refresh token and get new access token
+- **`POST /auth/revoke`** - Revoke a refresh token
+
+#### JWT Functions
+
+```ts
+// Token generation
+createAccessToken(payload, jwtConfig): Promise<string>
+createRefreshToken(db, userId, expiresAt, name?): Promise<{ token, record }>
+
+// Token validation
+verifyAccessToken(token, jwtConfig): Promise<AccessTokenPayload>
+validateBearerToken(request, jwtConfig): Promise<AccessTokenPayload | null>
+
+// Refresh token operations
+rotateRefreshToken(db, oldToken, expiresAt): Promise<{ token, record } | null>
+revokeRefreshToken(db, tokenId): Promise<RefreshToken>
+revokeAllUserRefreshTokens(db, userId): Promise<number>
+
+// HTTP handlers
+handleTokenRequest(request, db, jwtConfig): Promise<Response>
+handleRefreshRequest(request, db, jwtConfig): Promise<Response>
+handleRevokeRequest(request, db): Promise<Response>
+```
+
+### Security Considerations
+
+1. **Token Storage**
+   - Access tokens: Short-lived (15 min), can be stored in memory
+   - Refresh tokens: Long-lived (30 days), must be stored securely (HTTP-only cookies, encrypted storage)
+
+2. **Token Rotation**
+   - Always rotate refresh tokens on use
+   - Revoke old refresh token when creating new one
+   - Prevents replay attacks if tokens are compromised
+
+3. **Revocation**
+   - Implement "logout from all devices" using `revokeAllUserRefreshTokens()`
+   - Monitor `last_used_at` timestamps for suspicious activity
+   - Set up periodic cleanup of expired tokens
+
+4. **Key Management**
+   - Keep private keys secure (environment variables, secrets manager)
+   - Rotate keys periodically (requires re-authentication)
+   - Use separate keys for different environments (dev, staging, prod)
+
 ## Configuration
 
 ### Required Configuration

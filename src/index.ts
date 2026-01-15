@@ -45,3 +45,9 @@ export * from "./handler.js"
 
 // Utilities
 export * from "./utils/cors.js"
+
+// JWT Authentication (stateless Bearer tokens)
+export * from "./jwt/types.js"
+export * from "./jwt/signer.js"
+export * from "./jwt/refresh-tokens.js"
+export * from "./jwt/handlers.js"
