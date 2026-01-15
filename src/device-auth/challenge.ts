@@ -1,11 +1,5 @@
-/**
- * Challenge Generation and Verification
- *
- * Implements nonce-based challenge-response authentication for device keys.
- * Challenges are one-time use and expire after 10 minutes.
- */
-
-import type { ClearAuthConfig } from '../types.js'
+import type { Kysely } from 'kysely'
+import type { Database } from '../database/schema.js'
 import type { ChallengeResponse } from './types.js'
 
 /**
@@ -119,14 +113,14 @@ export function isValidChallengeFormat(challenge: string): boolean {
 /**
  * Store a challenge in the database
  *
- * @param config - ClearAuth configuration
+ * @param config - Database configuration
  * @param challenge - Challenge string in format "nonce|timestamp"
  * @returns Promise that resolves when challenge is stored
  *
  * @throws Error if challenge format is invalid or database operation fails
  */
 export async function storeChallenge(
-  config: ClearAuthConfig,
+  config: { database: Kysely<Database> },
   challenge: string
 ): Promise<void> {
   if (!isValidChallengeFormat(challenge)) {
@@ -162,20 +156,20 @@ export async function storeChallenge(
  * 2. Challenge has not expired
  * 3. Deletes challenge after verification (one-time use)
  *
- * @param config - ClearAuth configuration
+ * @param config - Database configuration
  * @param challenge - Challenge string to verify
  * @returns True if challenge is valid and consumed, false otherwise
  *
  * @example
  * ```ts
- * const isValid = await verifyChallenge(config, "abc123...|1705326960000")
+ * const isValid = await verifyChallenge({ database: db }, "abc123...|1705326960000")
  * if (isValid) {
  *   // Challenge is valid and has been consumed
  * }
  * ```
  */
 export async function verifyChallenge(
-  config: ClearAuthConfig,
+  config: { database: Kysely<Database> },
   challenge: string
 ): Promise<boolean> {
   if (!isValidChallengeFormat(challenge)) {
@@ -223,16 +217,18 @@ export async function verifyChallenge(
  * This should be called periodically (e.g., via cron job) to prevent
  * the challenges table from growing indefinitely.
  *
- * @param config - ClearAuth configuration
+ * @param config - Database configuration
  * @returns Number of challenges deleted
  *
  * @example
  * ```ts
- * const deleted = await cleanupExpiredChallenges(config)
+ * const deleted = await cleanupExpiredChallenges({ database: db })
  * console.log(`Deleted ${deleted} expired challenges`)
  * ```
  */
-export async function cleanupExpiredChallenges(config: ClearAuthConfig): Promise<number> {
+export async function cleanupExpiredChallenges(
+  config: { database: Kysely<Database> }
+): Promise<number> {
   const now = new Date()
 
   const result = await config.database
