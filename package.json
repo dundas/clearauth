@@ -1,12 +1,14 @@
 {
   "name": "clearauth",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "ClearAuth: lightweight authentication library with Arctic OAuth, pluggable password hashing, and Kysely-backed storage",
   "keywords": [
     "clearauth",
     "auth",
     "arctic",
     "oauth",
+    "jwt",
+    "bearer",
     "argon2id",
     "authentication",
     "sessions",
@@ -56,6 +58,10 @@
     "./node": {
       "import": "./dist/node.js",
       "types": "./dist/node.d.ts"
+    },
+    "./jwt": {
+      "import": "./dist/jwt.js",
+      "types": "./dist/jwt.d.ts"
     }
   },
   "scripts": {
