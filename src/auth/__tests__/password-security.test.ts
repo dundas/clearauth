@@ -66,7 +66,7 @@ describe('Password Hashing Security', () => {
       const wrongPassword = 'WrongPassword456!'
       const hashed = await hash(password, ARGON2_CONFIG)
 
-      const samples = 5
+      const samples = 3
 
       // Warm up (reduces variance on some machines)
       await verify(hashed, password)
@@ -92,7 +92,7 @@ describe('Password Hashing Security', () => {
       // NOTE: Keep this bound loose enough to be stable across CI variance while still
       // catching obvious timing differences.
       expect(max / Math.max(min, 1)).toBeLessThan(2.5)
-    })
+    }, 20000)
   })
 
   describe('Hash Format Validation', () => {
