@@ -776,6 +776,169 @@ All routes are handled by `handleClearAuthRequest()`:
 | `/auth/callback/github` | GET | GitHub OAuth callback |
 | `/auth/oauth/google` | GET | Initiate Google OAuth flow |
 | `/auth/callback/google` | GET | Google OAuth callback |
+| `/auth/challenge` | POST | Generate challenge for device auth |
+| `/auth/device/register` | POST | Register Web3 wallet device |
+
+## Device Authentication (Web3 Wallets)
+
+ClearAuth supports hardware-backed device authentication using Web3 wallets (MetaMask, WalletConnect, etc.) with EIP-191 signature verification. This enables phishing-resistant authentication where users prove ownership of their Ethereum wallet.
+
+### Challenge-Response Flow
+
+**1. Generate Challenge** (Server)
+```typescript
+POST /auth/challenge
+
+Response:
+{
+  "challenge": "a1b2c3...def|1705326960000",
+  "expiresIn": 600,
+  "createdAt": "2026-01-15T12:16:00.000Z"
+}
+```
+
+**2. Sign Challenge** (Client-side with MetaMask)
+```typescript
+// Request wallet connection
+const accounts = await window.ethereum.request({ 
+  method: 'eth_requestAccounts' 
+})
+const walletAddress = accounts[0]
+
+// Sign challenge with EIP-191 personal_sign
+const signature = await window.ethereum.request({
+  method: 'personal_sign',
+  params: [challenge, walletAddress]
+})
+```
+
+**3. Register Device** (Server - requires session authentication)
+```typescript
+POST /auth/device/register
+Cookie: session=...
+Content-Type: application/json
+
+{
+  "platform": "web3",
+  "publicKey": "0x04...",  // Optional - will be recovered from signature
+  "keyAlgorithm": "secp256k1",
+  "walletAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f42a0d",
+  "challenge": "a1b2c3...def|1705326960000",
+  "signature": "0x..."
+}
+
+Response:
+{
+  "deviceId": "dev_web3_abc123",
+  "userId": "user-456",
+  "platform": "web3",
+  "status": "active",
+  "registeredAt": "2026-01-15T12:16:00.000Z"
+}
+```
+
+### Programmatic Usage
+
+**Verify EIP-191 Signatures**
+```typescript
+import { 
+  verifyEIP191Signature, 
+  recoverEthereumAddress,
+  recoverEthereumPublicKey 
+} from 'clearauth'
+
+// Verify signature against expected address
+const isValid = verifyEIP191Signature(
+  'challenge|1234567890',
+  '0x1234...abc',
+  '0x742d35Cc6634C0532925a3b844Bc9e7595f42a0d'
+)
+
+// Recover address from signature
+const address = recoverEthereumAddress(
+  'challenge|1234567890',
+  '0x1234...abc'
+)
+// Returns: '0x742d35cc6634c0532925a3b844bc9e7595f42a0d'
+
+// Recover uncompressed public key
+const publicKey = recoverEthereumPublicKey(
+  'challenge|1234567890',
+  '0x1234...abc'
+)
+// Returns: '0x04...' (65 bytes, uncompressed)
+```
+
+**Generate and Verify Challenges**
+```typescript
+import { generateChallenge, verifyChallenge } from 'clearauth'
+
+// Generate challenge
+const challenge = generateChallenge()
+// { challenge: "nonce|timestamp", expiresIn: 600, createdAt: "..." }
+
+// Store in database
+await storeChallenge(config, challenge.challenge)
+
+// Verify and consume (one-time use)
+const isValid = await verifyChallenge(config, challenge.challenge)
+```
+
+### JWT Device Binding
+
+Optionally bind JWT tokens to specific devices for enhanced security:
+
+```typescript
+// Create device-bound token
+POST /auth/token
+Content-Type: application/json
+
+{
+  "userId": "user-123",
+  "email": "user@example.com",
+  "deviceId": "dev_web3_abc123"  // Optional
+}
+
+Response:
+{
+  "accessToken": "eyJhbGc...",  // JWT with deviceId claim
+  "refreshToken": "rt_...",
+  "tokenType": "Bearer",
+  "expiresIn": 900
+}
+```
+
+**Token Payload** (when deviceId provided):
+```json
+{
+  "sub": "user-123",
+  "email": "user@example.com",
+  "deviceId": "dev_web3_abc123",
+  "iat": 1705326960,
+  "exp": 1705327860
+}
+```
+
+**Validate Device-Bound Token**
+```typescript
+import { validateBearerToken } from 'clearauth'
+
+const payload = await validateBearerToken(request, jwtConfig)
+if (payload?.deviceId === 'dev_web3_abc123') {
+  // Token is bound to specific device
+}
+```
+
+### Security Features
+
+- ✅ **EIP-191 Standard** - Ethereum personal_sign message format
+- ✅ **Keccak-256 Hashing** - Ethereum-compatible hashing
+- ✅ **Address Recovery** - Cryptographic proof of wallet ownership
+- ✅ **Public Key Storage** - Recovers and stores uncompressed public keys
+- ✅ **Challenge-Response** - One-time use challenges with 10-minute TTL
+- ✅ **Session Authentication** - Device registration requires active session
+- ✅ **Replay Protection** - Challenges deleted after successful verification
+- ✅ **Recovery Byte Normalization** - Supports v values 0-3, 27-30, EIP-155 (v >= 35)
 
 ## How It Works
 

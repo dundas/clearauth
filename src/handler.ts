@@ -155,7 +155,7 @@ function isOAuthRoute(pathname: string): boolean {
  *
  * Device authentication routes include:
  * - POST `/auth/challenge` - Generate challenge for device authentication
- * - POST `/auth/device/register` - Register a new device (future)
+ * - POST `/auth/device/register` - Register a new Web3 wallet device
  * - POST `/auth/device/authenticate` - Authenticate with a registered device (future)
  * - GET  `/auth/device/list` - List user's registered devices (future)
  * - POST `/auth/device/revoke` - Revoke a device (future)
@@ -250,7 +250,7 @@ export function getSupportedRoutes() {
     ],
     deviceAuth: [
       { method: 'POST', path: '/auth/challenge', description: 'Generate challenge for device authentication' },
-      { method: 'POST', path: '/auth/device/register', description: 'Register a new device with signature verification (future)' },
+      { method: 'POST', path: '/auth/device/register', description: 'Register a new Web3 wallet device with EIP-191 signature verification' },
       { method: 'POST', path: '/auth/device/authenticate', description: 'Authenticate with a registered device (future)' },
       { method: 'GET', path: '/auth/device/list', description: 'List user\'s registered devices (future)' },
       { method: 'POST', path: '/auth/device/revoke', description: 'Revoke a device (future)' },

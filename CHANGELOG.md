@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Web3 Wallet Device Registration** - Hardware-backed authentication for MetaMask and Web3 wallets
+  - **EIP-191 Signature Verification** - Personal sign message verification with Ethereum address recovery
+  - **Device Registration Endpoint** - `POST /auth/device/register` with session authentication and challenge-response flow
+  - **JWT Device Binding** - Optional `deviceId` claim in JWT access tokens for device-bound authentication
+  - **Public Key Recovery** - Recovers and stores uncompressed Ethereum public keys (0x04...) for Web3 devices
+  - **Challenge-Response Flow** - One-time challenge consumption with 10-minute TTL for replay protection
+  - **Recovery Byte Normalization** - Supports v values 0-3, 27-30, and EIP-155 (v >= 35) for maximum compatibility
+
+  **New HTTP Endpoints:**
+  - `POST /auth/device/register` - Register Web3 wallet device (requires session authentication)
+
+  **New Functions:**
+  - `verifyEIP191Signature()` - Verify EIP-191 personal_sign signatures against expected address
+  - `recoverEthereumAddress()` - Recover Ethereum address from EIP-191 signature
+  - `recoverEthereumPublicKey()` - Recover uncompressed public key (0x04...) from signature
+  - `verifyAndRecoverAddress()` - Combined verification and address recovery with error handling
+  - `formatEIP191Message()` - Format message according to EIP-191 standard
+  - `hashEIP191Message()` - Hash message with Keccak-256 for verification
+
+  **Database Schema:**
+  - Uses existing `devices` table (migration 007) and `challenges` table (migration 008)
+  - Stores `wallet_address`, `public_key` (uncompressed), `key_algorithm: 'secp256k1'` for Web3 devices
+  - No new migrations required - fully compatible with existing schema
+
+  **JWT Enhancement:**
+  - Optional `deviceId` claim in JWT access tokens for device-bound sessions
+  - `POST /auth/token` accepts optional `deviceId` parameter
+  - `createAccessToken()` / `verifyAccessToken()` support `deviceId` claim
+  - `validateBearerToken()` returns `deviceId` when present in token
+
+  **Dependencies:**
+  - Uses existing `@noble/curves` (secp256k1) and `@noble/hashes` (keccak-256)
+  - Zero new dependencies added
+
+  **Testing:**
+  - 28 comprehensive EIP-191 verification tests (format, hash, recovery, edge cases)
+  - 11 device registration handler tests (success, failure, authentication)
+  - 10 JWT device binding tests (create, verify, validate)
+  - All 441 tests passing (100% coverage on new code)
+
 ## [0.5.0] - 2026-01-15
 
 ### Added
