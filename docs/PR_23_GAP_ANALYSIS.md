@@ -52,6 +52,7 @@
 
 **Modified Files:**
 - `src/device-auth/challenge.ts` (Refactor)
+- `src/index.ts` (Exports)
 - `tasks/tasks-0004-prd-device-key-authentication.md` (Status update)
 
 ### Test Results
