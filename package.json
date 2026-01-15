@@ -68,11 +68,11 @@
     "test:coverage": "vitest --coverage"
   },
   "peerDependencies": {
-    "react": ">=18",
-    "@neondatabase/serverless": "^0.10.0",
     "@libsql/client": "^0.14.0",
+    "@neondatabase/serverless": "^0.10.0",
     "@planetscale/database": "^1.19.0",
-    "postgres": "^3.4.0"
+    "postgres": "^3.4.0",
+    "react": ">=18"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -94,12 +94,13 @@
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
     "arctic": "^3.0.0",
+    "jose": "^6.1.3",
     "kysely": "^0.27.3",
     "oslo": "^1.2.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.0",
     "@types/node": "^22.10.0",
+    "@types/react": "^18.2.0",
     "@vitest/coverage-v8": "^1.0.0",
     "@vitest/ui": "^1.0.0",
     "react": "^18.2.0",
