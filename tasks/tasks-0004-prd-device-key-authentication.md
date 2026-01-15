@@ -258,55 +258,56 @@ PR #27 (Task 9.0 - Documentation)
 
 ---
 
-### 4.0 Web3 Wallet Device Registration
+### 4.0 Web3 Wallet Device Registration ✅
 **Agent:** `tdd-developer`
-**PR:** `#22 - Phase 4: Web3 Wallet Authentication`
+**PR:** `#22 - Phase 4: Web3 Wallet Authentication` ✅ MERGED
 **Effort:** Medium
 **Depends on:** PR #21
+**Status:** ✅ COMPLETE (2026-01-15)
 
-- [ ] **4.1** Implement EIP-191 signature verification
+- [x] **4.1** Implement EIP-191 signature verification
   - **File:** `src/device-auth/web3-verifier.ts` (create)
   - **Action:** verifyEIP191Signature() - verify EIP-191 personal_sign format, recover Ethereum address
   - **Test:** `src/device-auth/__tests__/web3-verifier.test.ts` (12+ assertions: valid sigs, address recovery, format)
   - **Commit:** `feat(device-auth): implement EIP-191 signature verification`
   - **Agent:** `tdd-developer`
 
-- [ ] **4.2** Implement Ethereum address recovery
+- [x] **4.2** Implement Ethereum address recovery
   - **File:** `src/device-auth/web3-verifier.ts` (modify)
   - **Action:** recoverEthereumAddress() using ethers.js or Web Crypto API, extract address from signature
   - **Test:** `src/device-auth/__tests__/web3-verifier.test.ts` (8+ assertions: recovery accuracy, checksum validation)
   - **Commit:** `feat(device-auth): implement Ethereum address recovery`
   - **Agent:** `tdd-developer`
 
-- [ ] **4.3** Implement device registration logic
+- [x] **4.3** Implement device registration logic
   - **File:** `src/device-auth/device-registration.ts` (create)
   - **Action:** registerDevice() function - create device record, generate device_id, store in database
   - **Test:** `src/device-auth/__tests__/device-registration.test.ts` (15+ assertions: creation, uniqueness, validation)
   - **Commit:** `feat(device-auth): implement device registration logic`
   - **Agent:** `tdd-developer`
 
-- [ ] **4.4** Extend JWT token creation for device binding
+- [x] **4.4** Extend JWT token creation for device binding
   - **File:** `src/jwt/handlers.ts` (modify)
   - **Action:** Update createAccessToken() to accept device_id and device_key_binding claims
   - **Test:** `src/jwt/__tests__/handlers.test.ts` (5+ assertions: device claims present, token validation)
   - **Commit:** `feat(jwt): add device binding support to JWT tokens`
   - **Agent:** `tdd-developer`
 
-- [ ] **4.5** Implement Web3 device registration handler
+- [x] **4.5** Implement Web3 device registration handler
   - **File:** `src/device-auth/handlers.ts` (modify)
   - **Action:** handleDeviceRegister() - POST /auth/device/register for Web3 platform, verify signature, issue device-bound JWT
   - **Test:** `src/device-auth/__tests__/handlers.test.ts` (15+ assertions: full flow, error cases)
   - **Commit:** `feat(device-auth): add Web3 device registration handler`
   - **Agent:** `tdd-developer`
 
-- [ ] **4.6** Run tests and build
+- [x] **4.6** Run tests and build
   - **File:** N/A
   - **Action:** Run all tests, verify Web3 registration works end-to-end
   - **Test:** All 418+ tests passing (40 new Web3 tests)
   - **Commit:** N/A (verification step)
   - **Agent:** `tdd-developer`
 
-- [ ] **4.7** Create PR and merge Phase 4
+- [x] **4.7** Create PR and merge Phase 4
   - **Action:** Create PR #22 with all commits, run CI tests, squash merge to main
   - **Agent:** Manual review + merge
 
