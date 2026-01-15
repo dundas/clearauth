@@ -8,6 +8,8 @@
  * @see /migrations/002_create_sessions_table.sql
  * @see /migrations/003_create_verification_tokens.sql
  * @see /migrations/004_create_reset_tokens.sql
+ * @see /migrations/005_create_magic_link_tokens.sql
+ * @see /migrations/006_create_refresh_tokens.sql
  */
 
 import type { ColumnType, Selectable, Insertable, Updateable } from 'kysely'
@@ -100,6 +102,25 @@ export interface MagicLinkTokensTable {
 }
 
 /**
+ * Refresh Tokens Table
+ *
+ * JWT refresh tokens for long-lived authentication.
+ * Tokens are hashed (SHA-256) before storage for security.
+ * Support revocation and expiration tracking.
+ * Typically expire after 30 days.
+ */
+export interface RefreshTokensTable {
+  id: ColumnType<string, string | undefined, never> // UUID, generated on insert
+  user_id: string // UUID foreign key to users
+  token_hash: string // SHA-256 hash of refresh token
+  name: string | null // User-friendly label (e.g., "MacBook Pro")
+  expires_at: Date
+  revoked_at: Date | null // NULL = active, non-NULL = revoked
+  created_at: ColumnType<Date, Date | undefined, never> // Default: NOW()
+  last_used_at: Date | null // Updated on token refresh
+}
+
+/**
  * Database Schema
  *
  * Complete database schema for Kysely type-safe queries.
@@ -110,6 +131,7 @@ export interface Database {
   email_verification_tokens: EmailVerificationTokensTable
   password_reset_tokens: PasswordResetTokensTable
   magic_link_tokens: MagicLinkTokensTable
+  refresh_tokens: RefreshTokensTable
 }
 
 /**
@@ -120,6 +142,7 @@ export type Session = Selectable<SessionsTable>
 export type EmailVerificationToken = Selectable<EmailVerificationTokensTable>
 export type PasswordResetToken = Selectable<PasswordResetTokensTable>
 export type MagicLinkToken = Selectable<MagicLinkTokensTable>
+export type RefreshToken = Selectable<RefreshTokensTable>
 
 /**
  * Type-safe input types for INSERT queries
@@ -129,6 +152,7 @@ export type NewSession = Insertable<SessionsTable>
 export type NewEmailVerificationToken = Insertable<EmailVerificationTokensTable>
 export type NewPasswordResetToken = Insertable<PasswordResetTokensTable>
 export type NewMagicLinkToken = Insertable<MagicLinkTokensTable>
+export type NewRefreshToken = Insertable<RefreshTokensTable>
 
 /**
  * Type-safe input types for UPDATE queries
@@ -138,6 +162,7 @@ export type SessionUpdate = Updateable<SessionsTable>
 export type EmailVerificationTokenUpdate = Updateable<EmailVerificationTokensTable>
 export type PasswordResetTokenUpdate = Updateable<PasswordResetTokensTable>
 export type MagicLinkTokenUpdate = Updateable<MagicLinkTokensTable>
+export type RefreshTokenUpdate = Updateable<RefreshTokensTable>
 
 /**
  * User with session information (common join result)
@@ -201,4 +226,12 @@ export function isValidEmailVerificationToken(token: EmailVerificationToken): bo
 
 export function isValidPasswordResetToken(token: PasswordResetToken): boolean {
   return new Date(token.expires_at) > new Date()
+}
+
+/**
+ * Check if a refresh token is valid (not expired and not revoked)
+ */
+export function isValidRefreshToken(token: RefreshToken): boolean {
+  const now = new Date()
+  return new Date(token.expires_at) > now && token.revoked_at === null
 }
