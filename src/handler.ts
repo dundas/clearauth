@@ -9,6 +9,7 @@
 
 import { handleOAuthRequest } from './oauth/handler.js'
 import { handleAuthRequest } from './auth/handler.js'
+import { handleDeviceAuthRequest } from './device-auth/handlers.js'
 import type { ClearAuthConfig } from './types.js'
 import { handleCorsPreflightRequest, addCorsHeaders } from './utils/cors.js'
 import { normalizeAuthPath } from './utils/normalize-auth-path.js'
@@ -76,7 +77,25 @@ export async function handleClearAuthRequest(
   let response: Response
 
   // Determine which handler to use based on path
-  if (isOAuthRoute(pathname)) {
+  if (isDeviceAuthRoute(pathname)) {
+    // Try device auth handler first (challenge, device registration, etc.)
+    const deviceAuthResponse = await handleDeviceAuthRequest(request, config)
+    if (deviceAuthResponse) {
+      response = deviceAuthResponse
+    } else {
+      // Route pattern matched but handler returned null (route not implemented yet)
+      response = new Response(
+        JSON.stringify({
+          error: 'Not Found',
+          message: `Device authentication route not found: ${pathname}`,
+        }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
+    }
+  } else if (isOAuthRoute(pathname)) {
     response = await handleOAuthRequest(request, config)
   } else if (isAuthRoute(pathname)) {
     response = await handleAuthRequest(request, config)
@@ -129,6 +148,34 @@ function isOAuthRoute(pathname: string): boolean {
   ]
 
   return oauthPatterns.some(pattern => pattern.test(normalizedPath))
+}
+
+/**
+ * Check if the path is a device authentication route
+ *
+ * Device authentication routes include:
+ * - POST `/auth/challenge` - Generate challenge for device authentication
+ * - POST `/auth/device/register` - Register a new device (future)
+ * - POST `/auth/device/authenticate` - Authenticate with a registered device (future)
+ * - GET  `/auth/device/list` - List user's registered devices (future)
+ * - POST `/auth/device/revoke` - Revoke a device (future)
+ *
+ * @param pathname - URL pathname to check
+ * @returns True if the path is a device auth route
+ */
+function isDeviceAuthRoute(pathname: string): boolean {
+  const normalizedPath = normalizeAuthPath(pathname)
+
+  // Device authentication patterns
+  const deviceAuthPatterns = [
+    /^\/auth\/challenge$/,
+    /^\/auth\/device\/register$/,
+    /^\/auth\/device\/authenticate$/,
+    /^\/auth\/device\/list$/,
+    /^\/auth\/device\/revoke$/,
+  ]
+
+  return deviceAuthPatterns.some(pattern => pattern.test(normalizedPath))
 }
 
 /**
@@ -200,6 +247,13 @@ export function getSupportedRoutes() {
       { method: 'POST', path: '/auth/logout', description: 'User logout (delete session)' },
       { method: 'POST', path: '/auth/request-reset', description: 'Request password reset token' },
       { method: 'POST', path: '/auth/reset-password', description: 'Reset password with token' },
+    ],
+    deviceAuth: [
+      { method: 'POST', path: '/auth/challenge', description: 'Generate challenge for device authentication' },
+      { method: 'POST', path: '/auth/device/register', description: 'Register a new device with signature verification (future)' },
+      { method: 'POST', path: '/auth/device/authenticate', description: 'Authenticate with a registered device (future)' },
+      { method: 'GET', path: '/auth/device/list', description: 'List user\'s registered devices (future)' },
+      { method: 'POST', path: '/auth/device/revoke', description: 'Revoke a device (future)' },
     ],
   }
 }
