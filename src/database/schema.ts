@@ -10,6 +10,8 @@
  * @see /migrations/004_create_reset_tokens.sql
  * @see /migrations/005_create_magic_link_tokens.sql
  * @see /migrations/006_create_refresh_tokens.sql
+ * @see /migrations/007_create_devices_table.sql
+ * @see /migrations/008_create_challenges_table.sql
  */
 
 import type { ColumnType, Selectable, Insertable, Updateable } from 'kysely'
@@ -121,6 +123,41 @@ export interface RefreshTokensTable {
 }
 
 /**
+ * Devices Table
+ *
+ * Hardware-backed device keys for phishing-resistant authentication.
+ * Supports Web3 wallets (MetaMask, SeedID), iOS (Secure Enclave), Android (KeyStore).
+ * Each device has unique cryptographic key pair stored in hardware.
+ */
+export interface DevicesTable {
+  id: ColumnType<string, string | undefined, never> // UUID, generated on insert
+  device_id: string // Unique device identifier
+  user_id: string // UUID foreign key to users
+  platform: string // 'web3' | 'ios' | 'android'
+  public_key: string // Public key (format depends on key_algorithm)
+  wallet_address: string | null // For Web3 only (Ethereum address)
+  key_algorithm: string // 'secp256k1' | 'Ed25519' | 'P-256'
+  status: ColumnType<string, string | undefined, string> // 'active' | 'revoked', default: 'active'
+  registered_at: Date
+  last_used_at: Date | null // Updated on each authenticated request
+  created_at: ColumnType<Date, Date | undefined, never> // Default: NOW()
+}
+
+/**
+ * Challenges Table
+ *
+ * Nonce-based challenges for replay-proof device authentication.
+ * Challenges expire after 10 minutes and can only be used once.
+ * Automatically cleaned up via TTL or scheduled job.
+ */
+export interface ChallengesTable {
+  nonce: string // Primary key - unique random nonce (32 bytes hex)
+  challenge: string // Full challenge string (nonce|timestamp)
+  created_at: Date
+  expires_at: Date // Challenges expire after 10 minutes
+}
+
+/**
  * Database Schema
  *
  * Complete database schema for Kysely type-safe queries.
@@ -132,6 +169,8 @@ export interface Database {
   password_reset_tokens: PasswordResetTokensTable
   magic_link_tokens: MagicLinkTokensTable
   refresh_tokens: RefreshTokensTable
+  devices: DevicesTable
+  challenges: ChallengesTable
 }
 
 /**
@@ -143,6 +182,8 @@ export type EmailVerificationToken = Selectable<EmailVerificationTokensTable>
 export type PasswordResetToken = Selectable<PasswordResetTokensTable>
 export type MagicLinkToken = Selectable<MagicLinkTokensTable>
 export type RefreshToken = Selectable<RefreshTokensTable>
+export type Device = Selectable<DevicesTable>
+export type Challenge = Selectable<ChallengesTable>
 
 /**
  * Type-safe input types for INSERT queries
@@ -153,6 +194,8 @@ export type NewEmailVerificationToken = Insertable<EmailVerificationTokensTable>
 export type NewPasswordResetToken = Insertable<PasswordResetTokensTable>
 export type NewMagicLinkToken = Insertable<MagicLinkTokensTable>
 export type NewRefreshToken = Insertable<RefreshTokensTable>
+export type NewDevice = Insertable<DevicesTable>
+export type NewChallenge = Insertable<ChallengesTable>
 
 /**
  * Type-safe input types for UPDATE queries
@@ -163,6 +206,8 @@ export type EmailVerificationTokenUpdate = Updateable<EmailVerificationTokensTab
 export type PasswordResetTokenUpdate = Updateable<PasswordResetTokensTable>
 export type MagicLinkTokenUpdate = Updateable<MagicLinkTokensTable>
 export type RefreshTokenUpdate = Updateable<RefreshTokensTable>
+export type DeviceUpdate = Updateable<DevicesTable>
+export type ChallengeUpdate = Updateable<ChallengesTable>
 
 /**
  * User with session information (common join result)
@@ -234,4 +279,18 @@ export function isValidPasswordResetToken(token: PasswordResetToken): boolean {
 export function isValidRefreshToken(token: RefreshToken): boolean {
   const now = new Date()
   return new Date(token.expires_at) > now && token.revoked_at === null
+}
+
+/**
+ * Check if a device is valid (status is 'active')
+ */
+export function isValidDevice(device: Device): boolean {
+  return device.status === 'active'
+}
+
+/**
+ * Check if a challenge is valid (not expired)
+ */
+export function isValidChallenge(challenge: Challenge): boolean {
+  return new Date(challenge.expires_at) > new Date()
 }
