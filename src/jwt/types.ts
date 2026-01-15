@@ -57,3 +57,77 @@ export interface JwtConfig {
    */
   audience?: string
 }
+
+/**
+ * Token Pair
+ *
+ * A pair of access and refresh tokens returned after authentication.
+ */
+export interface TokenPair {
+  /**
+   * JWT access token (short-lived, stateless)
+   */
+  accessToken: string
+
+  /**
+   * Opaque refresh token (long-lived, stored in database)
+   */
+  refreshToken: string
+
+  /**
+   * Access token TTL in seconds
+   */
+  expiresIn: number
+
+  /**
+   * Refresh token ID (for revocation)
+   */
+  refreshTokenId: string
+}
+
+/**
+ * Access Token Payload
+ *
+ * Standard JWT claims included in access tokens.
+ */
+export interface AccessTokenPayload {
+  /**
+   * Subject (user ID)
+   */
+  sub: string
+
+  /**
+   * User email address
+   */
+  email: string
+
+  /**
+   * Issued at (Unix timestamp in seconds)
+   */
+  iat: number
+
+  /**
+   * Expires at (Unix timestamp in seconds)
+   */
+  exp: number
+
+  /**
+   * Issuer (if configured)
+   */
+  iss?: string
+
+  /**
+   * Audience (if configured)
+   */
+  aud?: string
+}
+
+/**
+ * Default access token TTL (15 minutes)
+ */
+export const DEFAULT_ACCESS_TOKEN_TTL = 900
+
+/**
+ * Default refresh token TTL (30 days)
+ */
+export const DEFAULT_REFRESH_TOKEN_TTL = 2592000
