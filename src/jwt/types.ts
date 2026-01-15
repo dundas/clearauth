@@ -118,8 +118,9 @@ export interface AccessTokenPayload {
 
   /**
    * Audience (if configured)
+   * Can be a single string or array of strings per JWT spec
    */
-  aud?: string
+  aud?: string | string[]
 }
 
 /**
