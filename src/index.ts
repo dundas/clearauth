@@ -51,3 +51,10 @@ export * from "./jwt/types.js"
 export * from "./jwt/signer.js"
 export * from "./jwt/refresh-tokens.js"
 export * from "./jwt/handlers.js"
+
+// Device Authentication (Web3 wallet registration, hardware-backed keys)
+export * from "./device-auth/types.js"
+export * from "./device-auth/challenge.js"
+export * from "./device-auth/web3-verifier.js"
+export * from "./device-auth/signature-verifier.js"
+export * from "./device-auth/handlers.js"

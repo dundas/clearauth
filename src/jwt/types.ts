@@ -121,6 +121,11 @@ export interface AccessTokenPayload {
    * Can be a single string or array of strings per JWT spec
    */
   aud?: string | string[]
+
+  /**
+   * Optional bound device identifier (if the app uses device-bound JWTs)
+   */
+  deviceId?: string
 }
 
 /**

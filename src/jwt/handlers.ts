@@ -65,6 +65,11 @@ interface TokenRequest {
    * Optional device/client name for refresh token
    */
   deviceName?: string
+
+  /**
+   * Optional device identifier to bind into the access token payload
+   */
+  deviceId?: string
 }
 
 /**
@@ -182,7 +187,7 @@ export async function handleTokenRequest(
 
     // Create access token (JWT)
     const accessToken = await createAccessToken(
-      { sub: body.userId, email: body.email },
+      { sub: body.userId, email: body.email, deviceId: body.deviceId },
       jwtConfig
     )
 
@@ -525,7 +530,7 @@ export function parseBearerToken(request: Request): string | null {
 export async function validateBearerToken(
   request: Request,
   jwtConfig: JwtConfig
-): Promise<{ sub: string; email: string; iat: number; exp: number } | null> {
+): Promise<{ sub: string; email: string; iat: number; exp: number; deviceId?: string } | null> {
   const token = parseBearerToken(request)
   if (!token) {
     return null
@@ -538,6 +543,7 @@ export async function validateBearerToken(
       email: payload.email,
       iat: payload.iat,
       exp: payload.exp,
+      deviceId: payload.deviceId,
     }
   } catch (error) {
     // Token verification failed (expired, invalid signature, etc.)

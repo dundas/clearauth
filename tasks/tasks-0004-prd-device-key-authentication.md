@@ -203,55 +203,56 @@ PR #27 (Task 9.0 - Documentation)
 
 ---
 
-### 3.0 Cryptographic Signature Verification
+### 3.0 Cryptographic Signature Verification ✅
 **Agent:** `reliability-engineer`
-**PR:** `#21 - Phase 3: Multi-Curve Signature Verification`
+**PR:** `#21 - Phase 3: Multi-Curve Signature Verification` ✅ MERGED
 **Effort:** Medium
 **Depends on:** PR #20
+**Status:** ✅ COMPLETE (2026-01-15)
 
-- [ ] **3.1** Implement secp256k1 signature verification (Web3/Ethereum)
+- [x] **3.1** Implement secp256k1 signature verification (Web3/Ethereum)
   - **File:** `src/device-auth/signature-verifier.ts` (create)
   - **Action:** verifySecp256k1Signature() using Web Crypto API or ethers.js, verify ECDSA signatures on secp256k1 curve
   - **Test:** `src/device-auth/__tests__/signature-verifier.test.ts` (12+ assertions: valid sigs, invalid sigs, edge cases)
   - **Commit:** `feat(device-auth): implement secp256k1 signature verification`
   - **Agent:** `reliability-engineer`
 
-- [ ] **3.2** Implement P-256 signature verification (iOS/Android)
+- [x] **3.2** Implement P-256 signature verification (iOS/Android)
   - **File:** `src/device-auth/signature-verifier.ts` (modify)
   - **Action:** verifyP256Signature() using Web Crypto API, verify ECDSA signatures on P-256 (prime256v1) curve
   - **Test:** `src/device-auth/__tests__/signature-verifier.test.ts` (10+ assertions: valid sigs, invalid sigs, DER encoding)
   - **Commit:** `feat(device-auth): implement P-256 signature verification`
   - **Agent:** `reliability-engineer`
 
-- [ ] **3.3** Implement Ed25519 signature verification (SeedID)
+- [x] **3.3** Implement Ed25519 signature verification (SeedID)
   - **File:** `src/device-auth/signature-verifier.ts` (modify)
   - **Action:** verifyEd25519Signature() using Web Crypto API or noble-ed25519, verify EdDSA signatures
   - **Test:** `src/device-auth/__tests__/signature-verifier.test.ts` (10+ assertions: valid sigs, invalid sigs)
   - **Commit:** `feat(device-auth): implement Ed25519 signature verification`
   - **Agent:** `reliability-engineer`
 
-- [ ] **3.4** Implement public key parsing for each algorithm
+- [x] **3.4** Implement public key parsing for each algorithm
   - **File:** `src/device-auth/signature-verifier.ts` (modify)
   - **Action:** parsePublicKey() function supporting PEM, DER, JWK, raw hex formats for each curve
   - **Test:** `src/device-auth/__tests__/signature-verifier.test.ts` (8+ assertions: each format, error handling)
   - **Commit:** `feat(device-auth): implement multi-format public key parsing`
   - **Agent:** `reliability-engineer`
 
-- [ ] **3.5** Add comprehensive error handling
+- [x] **3.5** Add comprehensive error handling
   - **File:** `src/device-auth/signature-verifier.ts` (modify)
   - **Action:** Add error classes (InvalidSignatureError, UnsupportedAlgorithmError), sanitize error messages
   - **Test:** `src/device-auth/__tests__/signature-verifier.test.ts` (5+ assertions: error types, messages)
   - **Commit:** `feat(device-auth): add signature verification error handling`
   - **Agent:** `reliability-engineer`
 
-- [ ] **3.6** Run tests and build
+- [x] **3.6** Run tests and build
   - **File:** N/A
   - **Action:** Run all tests, verify all signature algorithms work, test edge compatibility (Cloudflare Workers)
-  - **Test:** All 378+ tests passing (30 new signature verification tests)
+  - **Test:** All 409 tests passing (34 new signature verification tests)
   - **Commit:** N/A (verification step)
   - **Agent:** `reliability-engineer`
 
-- [ ] **3.7** Create PR and merge Phase 3
+- [x] **3.7** Create PR and merge Phase 3
   - **Action:** Create PR #21 with all commits, run CI tests, squash merge to main
   - **Agent:** Manual review + merge
 
