@@ -121,6 +121,16 @@ describe('JWT Signer Module', () => {
       expect(token.split('.')).toHaveLength(3) // JWT format: header.payload.signature
     })
 
+    it('should include deviceId claim when provided', async () => {
+      const token = await createAccessToken(
+        { sub: 'user-123', email: 'test@example.com', deviceId: 'dev_web3_abc123' },
+        baseConfig
+      )
+
+      const payload = await verifyAccessToken(token, baseConfig)
+      expect(payload.deviceId).toBe('dev_web3_abc123')
+    })
+
     it('should include issuer claim when configured', async () => {
       const config: JwtConfig = {
         ...baseConfig,

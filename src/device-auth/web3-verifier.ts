@@ -106,14 +106,25 @@ export function recoverEthereumAddress(message: string, signature: string): stri
     const s = normalizedSig.slice(64, 128)
     const v = parseInt(normalizedSig.slice(128, 130), 16)
 
-    // Normalize recovery byte (27/28 or 0/1)
-    let recovery = v
-    if (recovery >= 27) {
-      recovery -= 27
+    // Normalize recovery byte.
+    //
+    // Common encodings:
+    // - 0/1 (y-parity)
+    // - 27/28 (legacy Ethereum)
+    // - 27..30 (some libs use full recovery id 0..3 with +27)
+    // - >=35 (EIP-155): v = chainId * 2 + 35 + yParity
+    let recovery: number
+    if (v >= 35) {
+      // EIP-155 only encodes y-parity (0/1)
+      recovery = (v - 35) % 2
+    } else if (v >= 27) {
+      recovery = v - 27
+    } else {
+      recovery = v
     }
 
     // Validate recovery byte
-    if (recovery !== 0 && recovery !== 1) {
+    if (!Number.isInteger(recovery) || recovery < 0 || recovery > 3) {
       throw new AddressRecoveryError(`Invalid recovery byte: ${v}`)
     }
 
@@ -141,6 +152,62 @@ export function recoverEthereumAddress(message: string, signature: string): stri
     }
     throw new AddressRecoveryError(
       `Failed to recover Ethereum address: ${error instanceof Error ? error.message : 'unknown error'}`
+    )
+  }
+}
+
+/**
+ * Recover uncompressed Ethereum public key from signature
+ *
+ * Returns a 65-byte uncompressed secp256k1 public key (0x04 + X + Y), hex-encoded.
+ * This is useful for persisting a stable public key alongside a wallet address.
+ *
+ * @param message - Original message that was signed
+ * @param signature - Signature in hex format (130 hex chars with recovery byte)
+ * @returns Public key hex string (lowercase, 0x-prefixed, 130 hex chars after 0x)
+ * @throws {AddressRecoveryError} If public key recovery fails
+ */
+export function recoverEthereumPublicKey(message: string, signature: string): string {
+  try {
+    const normalizedSig = signature.replace(/^0x/i, '')
+
+    if (normalizedSig.length !== 130) {
+      throw new AddressRecoveryError(
+        `Invalid signature length: expected 130 hex characters, got ${normalizedSig.length}`
+      )
+    }
+
+    const r = normalizedSig.slice(0, 64)
+    const s = normalizedSig.slice(64, 128)
+    const v = parseInt(normalizedSig.slice(128, 130), 16)
+
+    let recovery: number
+    if (v >= 35) {
+      recovery = (v - 35) % 2
+    } else if (v >= 27) {
+      recovery = v - 27
+    } else {
+      recovery = v
+    }
+
+    if (!Number.isInteger(recovery) || recovery < 0 || recovery > 3) {
+      throw new AddressRecoveryError(`Invalid recovery byte: ${v}`)
+    }
+
+    const messageHash = hashEIP191Message(message)
+    const signatureBytes = hexToBytes(r + s)
+    const sig = secp256k1.Signature.fromBytes(signatureBytes).addRecoveryBit(recovery)
+
+    const recoveredPoint = sig.recoverPublicKey(messageHash)
+    const publicKey = recoveredPoint.toBytes(false) // uncompressed
+
+    return '0x' + bytesToHex(publicKey).toLowerCase()
+  } catch (error) {
+    if (error instanceof AddressRecoveryError) {
+      throw error
+    }
+    throw new AddressRecoveryError(
+      `Failed to recover Ethereum public key: ${error instanceof Error ? error.message : 'unknown error'}`
     )
   }
 }
@@ -176,7 +243,10 @@ export function verifyEIP191Signature(
     const recoveredAddress = recoverEthereumAddress(message, signature)
 
     // Normalize expected address (lowercase, with 0x prefix)
-    const normalizedExpected = expectedAddress.toLowerCase().replace(/^0x/i, '0x')
+    let normalizedExpected = expectedAddress.toLowerCase()
+    if (!normalizedExpected.startsWith('0x')) {
+      normalizedExpected = '0x' + normalizedExpected
+    }
 
     // Compare addresses (case-insensitive)
     return recoveredAddress.toLowerCase() === normalizedExpected.toLowerCase()

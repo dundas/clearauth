@@ -164,6 +164,31 @@ describe('JWT Handlers', () => {
       expect(data.refreshTokenId).toBeTruthy()
     })
 
+    it('should include deviceId claim in access token when provided', async () => {
+      const request = new Request('https://example.com/auth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: 'user-123',
+          email: 'test@example.com',
+          deviceId: 'dev_web3_abc123',
+        }),
+      })
+
+      const response = await handleTokenRequest(request, db, jwtConfig)
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      const payload = await validateBearerToken(
+        new Request('https://example.com/api/test', {
+          headers: { Authorization: `Bearer ${data.accessToken}` },
+        }),
+        jwtConfig
+      )
+
+      expect(payload?.deviceId).toBe('dev_web3_abc123')
+    })
+
     it('should return 400 for missing userId', async () => {
       const request = new Request('https://example.com/auth/token', {
         method: 'POST',

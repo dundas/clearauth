@@ -44,7 +44,9 @@ describe('Web3 Wallet Signature Verification', () => {
   // Helper: Sign message with EIP-191 format
   function signEIP191Message(message: string, privateKey: Uint8Array): string {
     const messageHash = hashEIP191Message(message)
-    const signatureBytes = secp256k1.sign(messageHash, privateKey)
+    // IMPORTANT: @noble/curves ECDSA `sign()` pre-hashes by default. Ethereum signatures
+    // sign the already-hashed (keccak256) message, so we must disable prehashing here.
+    const signatureBytes = secp256k1.sign(messageHash, privateKey, { prehash: false })
 
     // Convert to Signature object
     const signature = secp256k1.Signature.fromBytes(signatureBytes)
@@ -52,9 +54,9 @@ describe('Web3 Wallet Signature Verification', () => {
     // Get expected public key
     const expectedPublicKey = secp256k1.getPublicKey(privateKey, false)
 
-    // Try both recovery bytes to find the correct one
+    // Try recovery ids to find the correct one
     let recovery = 0
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 4; i++) {
       try {
         const recovered = signature.addRecoveryBit(i).recoverPublicKey(messageHash)
         const recoveredBytes = recovered.toBytes(false)
@@ -70,7 +72,7 @@ describe('Web3 Wallet Signature Verification', () => {
     // Construct full signature (r + s + v)
     const r = bytesToHex(signatureBytes.slice(0, 32))
     const s = bytesToHex(signatureBytes.slice(32, 64))
-    const v = (recovery + 27).toString(16).padStart(2, '0') // Add 27 for Ethereum compatibility
+    const v = (recovery + 27).toString(16).padStart(2, '0') // Ethereum-style v (27..30)
 
     return '0x' + r + s + v
   }

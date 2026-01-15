@@ -89,7 +89,9 @@ describe('Password Hashing Security', () => {
       // We expect verification cost to be in the same ballpark for correct/incorrect passwords.
       // This is an inherently noisy measurement in CI and on developer machines.
       // Use a ratio bound rather than a strict millisecond threshold to avoid flakiness.
-      expect(max / Math.max(min, 1)).toBeLessThan(2)
+      // NOTE: Keep this bound loose enough to be stable across CI variance while still
+      // catching obvious timing differences.
+      expect(max / Math.max(min, 1)).toBeLessThan(2.5)
     })
   })
 

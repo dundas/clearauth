@@ -12,8 +12,13 @@
  */
 
 import type { ClearAuthConfig } from '../types.js'
-import { generateChallenge, storeChallenge } from './challenge.js'
-import type { ChallengeResponse } from './types.js'
+import { base64url } from 'oslo/encoding'
+import { generateChallenge, storeChallenge, verifyChallenge } from './challenge.js'
+import { getSessionFromCookie } from '../session/validate.js'
+import { verifyEIP191Signature, recoverEthereumPublicKey } from './web3-verifier.js'
+import { verifySignature } from './signature-verifier.js'
+import type { ChallengeResponse, DeviceRegistrationRequest, DeviceRegistrationResponse } from './types.js'
+import { isDevicePlatform, isKeyAlgorithm } from './types.js'
 
 /**
  * Error response
@@ -21,6 +26,35 @@ import type { ChallengeResponse } from './types.js'
 interface ErrorResponse {
   error: string
   message: string
+}
+
+/**
+ * Generate a stable, user-friendly device identifier
+ * @internal
+ */
+function generateDeviceId(platform: string, entropyBytes: number = 12): string {
+  const bytes = new Uint8Array(entropyBytes)
+  crypto.getRandomValues(bytes)
+  const suffix = base64url.encode(bytes).replace(/=/g, '')
+  return `dev_${platform}_${suffix}`
+}
+
+/**
+ * Normalize an Ethereum address to lowercase 0x-prefixed format
+ * @internal
+ */
+function normalizeEthereumAddress(address: string): string {
+  const lower = address.toLowerCase()
+  return lower.startsWith('0x') ? lower : `0x${lower}`
+}
+
+/**
+ * Basic Ethereum address validation
+ * @internal
+ */
+function isValidEthereumAddress(address: string): boolean {
+  const normalized = normalizeEthereumAddress(address)
+  return /^0x[0-9a-f]{40}$/.test(normalized)
 }
 
 /**
@@ -46,6 +80,231 @@ async function parseJsonBody<T = any>(request: Request): Promise<T> {
     return JSON.parse(text)
   } catch (error) {
     throw new Error('Invalid JSON in request body')
+  }
+}
+
+/**
+ * Handle POST /auth/device/register - Register a new device
+ *
+ * Requires an authenticated session cookie. The request must include a valid
+ * one-time challenge and a signature of that challenge from the device key.
+ *
+ * For Web3 devices, the signature is verified using EIP-191 personal_sign and
+ * must match the provided wallet address.
+ */
+export async function handleDeviceRegisterRequest(
+  request: Request,
+  config: ClearAuthConfig
+): Promise<Response> {
+  try {
+    if (request.method !== 'POST') {
+      return new Response(
+        JSON.stringify({
+          error: 'method_not_allowed',
+          message: 'Only POST method is allowed',
+        } satisfies ErrorResponse),
+        {
+          status: 405,
+          headers: { 'Content-Type': 'application/json', Allow: 'POST' },
+        }
+      )
+    }
+
+    // Session-authenticated: must have a valid session cookie
+    const cookieName = config.session?.cookie?.name ?? 'session'
+    const sessionResult = await getSessionFromCookie(request, config.database, { cookieName })
+    if (!sessionResult) {
+      return new Response(
+        JSON.stringify({
+          error: 'unauthorized',
+          message: 'Valid session cookie required to register a device',
+        } satisfies ErrorResponse),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const body = await parseJsonBody<DeviceRegistrationRequest>(request)
+
+    if (!body || typeof body !== 'object') {
+      return new Response(
+        JSON.stringify({
+          error: 'invalid_request',
+          message: 'Request body must be a JSON object',
+        } satisfies ErrorResponse),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const { platform, publicKey, keyAlgorithm, walletAddress, challenge, signature } = body
+
+    if (!platform || !isDevicePlatform(platform)) {
+      return new Response(
+        JSON.stringify({
+          error: 'invalid_request',
+          message: 'Invalid or missing platform',
+        } satisfies ErrorResponse),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!keyAlgorithm || !isKeyAlgorithm(keyAlgorithm)) {
+      return new Response(
+        JSON.stringify({
+          error: 'invalid_request',
+          message: 'Invalid or missing keyAlgorithm',
+        } satisfies ErrorResponse),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!challenge || typeof challenge !== 'string') {
+      return new Response(
+        JSON.stringify({
+          error: 'invalid_request',
+          message: 'Missing challenge',
+        } satisfies ErrorResponse),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!signature || typeof signature !== 'string') {
+      return new Response(
+        JSON.stringify({
+          error: 'invalid_request',
+          message: 'Missing signature',
+        } satisfies ErrorResponse),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Verify and consume the challenge (one-time use)
+    const okChallenge = await verifyChallenge(config, challenge)
+    if (!okChallenge) {
+      return new Response(
+        JSON.stringify({
+          error: 'invalid_challenge',
+          message: 'Challenge is invalid, expired, or already used',
+        } satisfies ErrorResponse),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const userId = sessionResult.user.id
+
+    const now = new Date()
+    const deviceId = generateDeviceId(platform)
+
+    let finalWalletAddress: string | null = null
+    let finalPublicKey: string
+
+    if (platform === 'web3') {
+      if (!walletAddress || typeof walletAddress !== 'string' || !isValidEthereumAddress(walletAddress)) {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_request',
+            message: 'walletAddress is required for web3 and must be a valid Ethereum address',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      finalWalletAddress = normalizeEthereumAddress(walletAddress)
+
+      const okSig = verifyEIP191Signature(challenge, signature, finalWalletAddress)
+      if (!okSig) {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_signature',
+            message: 'Signature does not match provided wallet address',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Persist recovered public key for audit and optional future verification
+      finalPublicKey = recoverEthereumPublicKey(challenge, signature)
+
+      // Optional: if caller provided a public key, ensure it matches the recovered one
+      if (publicKey && typeof publicKey === 'string') {
+        const provided = publicKey.toLowerCase().replace(/^0x/i, '0x')
+        if (provided.startsWith('0x') && provided.length === finalPublicKey.length && provided !== finalPublicKey) {
+          return new Response(
+            JSON.stringify({
+              error: 'invalid_request',
+              message: 'Provided publicKey does not match recovered public key for signature',
+            } satisfies ErrorResponse),
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+    } else {
+      // Non-web3 devices: require public key for verification
+      if (!publicKey || typeof publicKey !== 'string') {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_request',
+            message: 'publicKey is required for non-web3 device registration',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const okSig = await verifySignature({
+        message: challenge,
+        signature,
+        publicKey,
+        algorithm: keyAlgorithm,
+      })
+
+      if (!okSig) {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_signature',
+            message: 'Signature verification failed',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      finalPublicKey = publicKey
+    }
+
+    await config.database
+      .insertInto('devices')
+      .values({
+        device_id: deviceId,
+        user_id: userId,
+        platform,
+        public_key: finalPublicKey,
+        wallet_address: finalWalletAddress,
+        key_algorithm: keyAlgorithm,
+        status: 'active',
+        registered_at: now,
+        last_used_at: null,
+      })
+      .execute()
+
+    const response: DeviceRegistrationResponse = {
+      deviceId,
+      userId,
+      platform,
+      status: 'active',
+      registeredAt: now.toISOString(),
+    }
+
+    return new Response(JSON.stringify(response), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  } catch (error) {
+    console.error('Device registration failed:', error)
+    return new Response(
+      JSON.stringify({
+        error: 'internal_error',
+        message: error instanceof Error ? error.message : 'Failed to register device',
+      } satisfies ErrorResponse),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
   }
 }
 
@@ -145,6 +404,11 @@ export async function handleDeviceAuthRequest(
   // POST /auth/challenge
   if (url.pathname === '/auth/challenge') {
     return handleChallengeRequest(request, config)
+  }
+
+  // POST /auth/device/register
+  if (url.pathname === '/auth/device/register') {
+    return handleDeviceRegisterRequest(request, config)
   }
 
   // Route not found

@@ -122,7 +122,7 @@ export function validateAlgorithm(algorithm?: string): void {
  * ```
  */
 export async function createAccessToken(
-  payload: Pick<AccessTokenPayload, 'sub' | 'email'>,
+  payload: Pick<AccessTokenPayload, 'sub' | 'email' | 'deviceId'>,
   config: JwtConfig
 ): Promise<string> {
   // Validate algorithm (security-critical)
@@ -136,6 +136,7 @@ export async function createAccessToken(
   const jwt = new SignJWT({
     sub: payload.sub,
     email: payload.email,
+    deviceId: payload.deviceId,
   })
     .setProtectedHeader({ alg: 'ES256' })
     .setIssuedAt()
@@ -198,6 +199,7 @@ export async function verifyAccessToken(
   return {
     sub: payload.sub as string,
     email: payload.email as string,
+    deviceId: payload.deviceId as string | undefined,
     iat: payload.iat as number,
     exp: payload.exp as number,
     iss: payload.iss as string | undefined,
