@@ -18,6 +18,7 @@ import type { JwtConfig, AccessTokenPayload } from '../jwt/types.js'
 import { validateBearerToken } from '../jwt/handlers.js'
 import { verifySignature } from './signature-verifier.js'
 import { verifyChallenge, extractTimestamp } from './challenge.js'
+import { updateDeviceLastUsed } from './device-registration.js'
 import type { Device } from '../database/schema.js'
 
 /**
@@ -257,13 +258,8 @@ export async function verifyDeviceSignature(
   }
 
   // 8. Update last used timestamp (fire and forget)
-  // Using generic update since we don't have a specific helper for devices table update here yet
-  // or we can add it to device-registration.ts later
   try {
-    await db.updateTable('devices')
-      .set({ last_used_at: new Date() })
-      .where('device_id', '=', deviceId)
-      .execute()
+    await updateDeviceLastUsed(db, deviceId)
   } catch (e) {
     // Ignore update error, not critical
   }
