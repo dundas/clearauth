@@ -61,8 +61,10 @@ export interface DeviceRegistrationRequest {
    * - secp256k1: hex string (0x-prefixed or raw hex)
    * - P-256: PEM, DER, or JWK format
    * - Ed25519: hex string or base64
+   *
+   * Optional for iOS (extracted from attestation), required for other platforms
    */
-  publicKey: string
+  publicKey?: string
 
   /**
    * Cryptographic algorithm used by the device
@@ -87,6 +89,18 @@ export interface DeviceRegistrationRequest {
    * - Ed25519: hex string or base64
    */
   signature: string
+
+  /**
+   * iOS App Attest attestation object (base64-encoded CBOR)
+   * Required for iOS platform, ignored for other platforms
+   */
+  attestation?: string
+
+  /**
+   * iOS App Attest key identifier
+   * Required for iOS platform, ignored for other platforms
+   */
+  keyId?: string
 }
 
 /**
