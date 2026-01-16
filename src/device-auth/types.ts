@@ -101,6 +101,12 @@ export interface DeviceRegistrationRequest {
    * Required for iOS platform, ignored for other platforms
    */
   keyId?: string
+
+  /**
+   * Android Play Integrity API token (JWT format)
+   * Required for Android platform, ignored for other platforms
+   */
+  integrityToken?: string
 }
 
 /**
