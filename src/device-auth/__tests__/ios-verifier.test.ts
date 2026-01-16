@@ -215,6 +215,24 @@ describe('verifyCertificateChain', () => {
       verifyCertificateChain([leaf.der], { trustedRoots: [root.der] })
     ).rejects.toThrow(IOSAttestationError)
   })
+
+  it('uses Apple App Attest Root CA as default trusted root', async () => {
+    // Create a fake certificate chain NOT signed by Apple
+    const fakeRoot = await createTestRootCA()
+    const fakeLeaf = await createTestLeafCert({
+      issuerName: fakeRoot.cert.subject,
+      issuerKey: fakeRoot.keys.privateKey,
+      nonce: randomBytes(32),
+    })
+
+    // Should reject because it doesn't chain to Apple App Attest Root CA
+    await expect(verifyCertificateChain([fakeLeaf.der, fakeRoot.der])).rejects.toThrow(
+      IOSAttestationError
+    )
+    await expect(verifyCertificateChain([fakeLeaf.der, fakeRoot.der])).rejects.toThrow(
+      /does not terminate at a trusted Apple root CA/
+    )
+  })
 })
 
 describe('verifyIOSAttestation', () => {
