@@ -337,11 +337,16 @@ export async function handleDeviceRegisterRequest(
         )
       }
 
+      if (!config.android?.packageName) {
+        throw new Error(
+          'Android package name must be configured (config.android.packageName) for Android device registration'
+        )
+      }
+
       // Verify Play Integrity token
       const integrityResult = await verifyIntegrityToken(integrityToken, {
         expectedNonce: challenge,
-        // Optional: Add expectedPackageName from config if needed
-        // expectedPackageName: config.android?.packageName,
+        expectedPackageName: config.android.packageName,
       })
 
       if (!integrityResult.valid || !integrityResult.payload) {

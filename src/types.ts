@@ -245,6 +245,21 @@ export interface ClearAuthConfig {
    * Production mode flag
    */
   isProduction?: boolean
+
+  /**
+   * Android device authentication configuration
+   *
+   * Required for verifying Google Play Integrity tokens.
+   */
+  android?: {
+    /**
+     * Expected Android application package name (e.g., "com.example.app").
+     *
+     * This is used to bind Play Integrity tokens to your app; without it,
+     * tokens from other apps could be replayed against your API.
+     */
+    packageName: string
+  }
 }
 
 /**

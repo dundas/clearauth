@@ -125,6 +125,13 @@ describe('validateDeviceVerdict', () => {
     const verdict = ['UNKNOWN_VERDICT']
     expect(() => validateDeviceVerdict(verdict)).toThrow(AndroidIntegrityError)
   })
+
+  it('should reject unknown verdict values even when allowBasicIntegrity is true', () => {
+    const verdict = ['UNKNOWN_VERDICT']
+    expect(() => validateDeviceVerdict(verdict, { allowBasicIntegrity: true })).toThrow(
+      AndroidIntegrityError
+    )
+  })
 })
 
 describe('verifyIntegrityToken', () => {

@@ -10,7 +10,7 @@
  * @module device-auth/android-verifier
  */
 
-import { jwtVerify, createRemoteJWKSet, type JWTPayload } from 'jose'
+import { jwtVerify, createRemoteJWKSet, type JWTPayload, type JWK } from 'jose'
 
 /**
  * Custom error for Android integrity verification failures
@@ -73,11 +73,41 @@ export interface IntegrityTokenPayload extends JWTPayload {
 type DeviceIntegrityVerdict = 'MEETS_DEVICE_INTEGRITY' | 'MEETS_STRONG_INTEGRITY' | 'MEETS_BASIC_INTEGRITY'
 
 /**
- * Google Play Integrity public keys endpoint
+ * Google public keys (JWKS) endpoint
  *
- * Google rotates keys periodically. Fetch from this URL or cache locally.
+ * Used for verifying Google-signed JWTs. Can be overridden via `verifyIntegrityToken({ jwksUrl })`
+ * if your environment requires a different source of keys.
  */
-const GOOGLE_PLAY_INTEGRITY_JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs'
+const GOOGLE_PLAY_INTEGRITY_JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs?format=jwk'
+
+function decodeBase64UrlJson<T>(value: string): T {
+  // Prefer Web-standard `atob` for edge compatibility; fall back to Buffer in Node.
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+  const padLen = (4 - (normalized.length % 4)) % 4
+  const padded = normalized + '='.repeat(padLen)
+
+  const json =
+    typeof atob === 'function'
+      ? new TextDecoder().decode(
+          Uint8Array.from(atob(padded), (c) => c.charCodeAt(0))
+        )
+      : Buffer.from(padded, 'base64').toString('utf-8')
+
+  return JSON.parse(json) as T
+}
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) {
+    diff |= a[i] ^ b[i]
+  }
+  return diff === 0
+}
+
+function constantTimeEqualString(a: string, b: string): boolean {
+  return bytesEqual(new TextEncoder().encode(a), new TextEncoder().encode(b))
+}
 
 /**
  * Parse Play Integrity token (JWT) and extract payload
@@ -101,9 +131,7 @@ export async function parseIntegrityToken(token: string): Promise<IntegrityToken
       throw new AndroidIntegrityError('Invalid JWT format: expected 3 parts')
     }
 
-    const payloadBase64 = parts[1]
-    const payloadJson = Buffer.from(payloadBase64, 'base64url').toString('utf-8')
-    const payload = JSON.parse(payloadJson) as IntegrityTokenPayload
+    const payload = decodeBase64UrlJson<IntegrityTokenPayload>(parts[1])
 
     // Validate required claims
     if (!payload.requestDetails) {
@@ -167,18 +195,25 @@ export function validateDeviceVerdict(
       )
     }
   } else {
-    // Default: require at least MEETS_DEVICE_INTEGRITY or MEETS_STRONG_INTEGRITY
-    if (!hasDeviceIntegrity && !hasStrongIntegrity) {
-      if (hasBasicIntegrity && !allowBasic) {
-        throw new AndroidIntegrityError(
-          'Device does not meet integrity requirements: MEETS_DEVICE_INTEGRITY or MEETS_STRONG_INTEGRITY required (has only MEETS_BASIC_INTEGRITY)'
-        )
-      } else if (!hasBasicIntegrity) {
-        throw new AndroidIntegrityError(
-          'Device does not meet integrity requirements: no valid integrity verdict found'
-        )
-      }
+    const hasAcceptableIntegrity =
+      hasDeviceIntegrity || hasStrongIntegrity || (allowBasic && hasBasicIntegrity)
+
+    if (!hasAcceptableIntegrity) {
+      throw new AndroidIntegrityError(
+        'Device does not meet integrity requirements: no valid integrity verdict found'
+      )
     }
+  }
+
+  // Ensure verdict values are recognized (defense-in-depth)
+  const allowed: DeviceIntegrityVerdict[] = [
+    'MEETS_DEVICE_INTEGRITY',
+    'MEETS_STRONG_INTEGRITY',
+    'MEETS_BASIC_INTEGRITY',
+  ]
+  const unknown = verdict.find((v) => !allowed.includes(v as DeviceIntegrityVerdict))
+  if (unknown) {
+    throw new AndroidIntegrityError(`Unknown device integrity verdict: ${unknown}`)
   }
 }
 
@@ -198,8 +233,10 @@ export function validateDeviceVerdict(
 export async function verifyIntegrityToken(
   token: string,
   options?: {
-    /** Google public keys (JWKS) for signature verification */
-    googlePublicKeys?: any
+    /** Google public keys (JWKS) for signature verification (primarily for testing) */
+    googlePublicKeys?: { keys: JWK[] }
+    /** Override remote JWKS URL (defaults to Google JWKS URL) */
+    jwksUrl?: string
     /** Expected package name */
     expectedPackageName?: string
     /** Expected nonce (challenge) */
@@ -227,21 +264,21 @@ export async function verifyIntegrityToken(
         const { jwtVerify, importJWK } = await import('jose')
 
         // Find matching key by kid
-        const header = JSON.parse(
-          Buffer.from(token.split('.')[0], 'base64url').toString('utf-8')
-        )
+        const header = decodeBase64UrlJson<{ kid?: string; alg?: string }>(token.split('.')[0])
         const kid = header.kid
 
-        const matchingKey = options.googlePublicKeys.keys.find((key: any) => key.kid === kid)
+        const matchingKey = options.googlePublicKeys.keys.find((key) => key.kid === kid)
         if (!matchingKey) {
           throw new Error(`No matching key found for kid: ${kid}`)
         }
 
-        const publicKey = await importJWK(matchingKey, 'ES256')
+        const publicKey = await importJWK(matchingKey)
         verified = await jwtVerify(token, publicKey)
       } else {
         // Use Google's public keys endpoint
-        const JWKS = createRemoteJWKSet(new URL(GOOGLE_PLAY_INTEGRITY_JWKS_URL))
+        const JWKS = createRemoteJWKSet(
+          new URL(options?.jwksUrl ?? GOOGLE_PLAY_INTEGRITY_JWKS_URL)
+        )
         verified = await jwtVerify(token, JWKS)
       }
     } catch (error) {
@@ -276,7 +313,7 @@ export async function verifyIntegrityToken(
 
     // Validate expected nonce
     if (options?.expectedNonce) {
-      if (payload.requestDetails.nonce !== options.expectedNonce) {
+      if (!constantTimeEqualString(payload.requestDetails.nonce, options.expectedNonce)) {
         return {
           valid: false,
           error: 'Nonce mismatch',
