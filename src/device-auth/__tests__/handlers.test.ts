@@ -361,6 +361,87 @@ describe('Device Authentication Handlers', () => {
       const resp = await handleDeviceAuthRequest(req, config)
       expect(resp?.status).toBe(401)
     })
+
+    it('should require attestation for iOS platform', async () => {
+      const req = new Request('https://example.com/auth/device/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: 'session=sess-123',
+        },
+        body: JSON.stringify({
+          platform: 'ios',
+          keyAlgorithm: 'P-256',
+          challenge: 'a'.repeat(64) + '|1705326960000',
+          signature: 'mock-signature',
+          // Missing attestation and keyId
+        }),
+      })
+
+      const resp = await handleDeviceAuthRequest(req, config)
+      expect(resp?.status).toBe(400)
+
+      const body = await resp?.json()
+      expect(body.error).toBe('invalid_request')
+      expect(body.message).toContain('attestation')
+    })
+
+    it('should require keyId for iOS platform', async () => {
+      const req = new Request('https://example.com/auth/device/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: 'session=sess-123',
+        },
+        body: JSON.stringify({
+          platform: 'ios',
+          keyAlgorithm: 'P-256',
+          challenge: 'a'.repeat(64) + '|1705326960000',
+          signature: 'mock-signature',
+          attestation: Buffer.from('mock').toString('base64'),
+          // Missing keyId
+        }),
+      })
+
+      const resp = await handleDeviceAuthRequest(req, config)
+      expect(resp?.status).toBe(400)
+
+      const body = await resp?.json()
+      expect(body.error).toBe('invalid_request')
+      expect(body.message).toContain('keyId')
+    })
+
+    it('should reject iOS registration with invalid attestation', async () => {
+      // Generate a valid challenge first
+      const challengeReq = new Request('https://example.com/auth/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const challengeResp = await handleChallengeRequest(challengeReq, config)
+      const challengeBody: ChallengeResponse = await challengeResp.json()
+
+      const req = new Request('https://example.com/auth/device/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: 'session=sess-123',
+        },
+        body: JSON.stringify({
+          platform: 'ios',
+          keyAlgorithm: 'P-256',
+          challenge: challengeBody.challenge,
+          signature: 'mock-signature',
+          attestation: Buffer.from('invalid-attestation').toString('base64'),
+          keyId: 'mock-key-id',
+        }),
+      })
+
+      const resp = await handleDeviceAuthRequest(req, config)
+      expect(resp?.status).toBe(400)
+
+      const body = await resp?.json()
+      expect(body.error).toBe('invalid_attestation')
+    })
   })
 })
 
