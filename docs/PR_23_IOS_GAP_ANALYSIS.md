@@ -11,9 +11,9 @@
 
 **PR #23** implements **iOS App Attest device authentication**, adding phishing-resistant, hardware-backed authentication for iOS devices using Apple's Secure Enclave and App Attest framework.
 
-**Current Merge Confidence:** 85% ⚠️
+**Current Merge Confidence:** 95% ✅
 
-**Status:** Near production-ready with minor gaps
+**Status:** ✅ Ready to merge (remaining items are non-blocking)
 
 ---
 
@@ -22,14 +22,14 @@
 | Category | Current State | Ready-to-Merge | Gap |
 |----------|---------------|----------------|-----|
 | **Core Implementation** | ✅ Complete | ✅ Required | None |
-| **Tests - Unit** | ✅ 19 tests passing | ✅ Required | None |
-| **Tests - Integration** | ⚠️ Mock only | ✅ Real attestation | Missing real attestation test |
+| **Tests - Unit** | ✅ Passing (happy + negative paths) | ✅ Required | None |
+| **Tests - Integration** | ⚠️ No real Apple fixture | ✅ Real attestation fixture | Nice-to-have |
 | **Build** | ✅ Compiles | ✅ Required | None |
-| **Certificate Validation** | ⚠️ Partial | ✅ Full Apple CA | Missing Apple Root CA |
+| **Certificate Validation** | ✅ Anchored to Apple Root CA - G2/G3 | ✅ Required | None |
 | **Documentation** | ⚠️ JSDoc only | ✅ README + Guide | Missing usage docs |
 | **CI Check** | ✅ Passed | ✅ Required | None |
 | **Error Messages** | ✅ Clear | ✅ Required | None |
-| **Edge Cases** | ⚠️ Basic | ✅ Comprehensive | See below |
+| **Edge Cases** | ✅ Hardened parsing + binding checks | ✅ Required | None |
 
 ---
 
@@ -61,9 +61,14 @@
 
 4. **Certificate Chain Validation**
    - ✅ Parse DER/PEM certificates
-   - ✅ Check expiration dates (notBefore/notAfter)
-   - ✅ Verify issuer/subject chain
-   - ⚠️ Missing: Apple Root CA verification
+   - ✅ Build chain and verify signatures (`X509ChainBuilder`)
+   - ✅ Check validity periods (notBefore/notAfter)
+   - ✅ Enforce trust anchor: Apple Root CA - G2/G3 (bundled PEM)
+
+5. **Challenge Binding / Anti-Replay**
+   - ✅ Bind `keyId` to credentialId from authenticator data
+   - ✅ Verify App Attest nonce extension matches `SHA256(authData || SHA256(challenge))`
+   - ✅ Verify challenge signature with extracted P-256 key
 
 5. **iOS Registration Handler**
    - ✅ Require attestation + keyId for iOS platform
@@ -74,46 +79,15 @@
    - ✅ Session authentication requirement
 
 6. **Test Coverage**
-   - ✅ 16 iOS verifier tests (parsing, extraction, validation)
-   - ✅ 3 iOS handler tests (validation, errors)
-   - ✅ Error handling coverage
-   - ⚠️ Missing: Real App Attest attestation test
+   - ✅ Happy-path iOS verifier coverage using generated cert chains
+   - ✅ Negative-path coverage (bad CBOR, bad chain, expired cert, nonce mismatch, keyId mismatch)
+   - ✅ Handler tests (validation, errors)
 
-### ⚠️ Gaps Identified
+### ⚠️ Remaining Gaps (Non-Blocking)
 
-#### 1. **Apple Root CA Verification** (Medium Priority)
+#### 1. **Real Attestation Fixture** (Low Priority)
 
-**Current:**
-```typescript
-// TODO: Verify against Apple App Attest Root CA
-// This requires including the Apple root CA certificate
-// For MVP, we trust the chain structure validation above
-```
-
-**Needed for Production:**
-- Include Apple App Attest Root CA certificate (PEM)
-- Verify leaf certificate chains to Apple root
-- Prevent MITM attacks with fake certificate chains
-
-**Impact:** Security vulnerability - could accept forged attestations
-**Fix Effort:** 2-3 hours
-**Recommendation:** Must fix before production
-
-#### 2. **Challenge Hash Verification** (Medium Priority)
-
-**Current:** Challenge signature is verified, but attestation doesn't include challenge hash validation
-
-**Needed:**
-- Verify that the attestation's client data hash matches the challenge
-- Prevent replay attacks with old attestations
-
-**Impact:** Potential replay attack vector
-**Fix Effort:** 1-2 hours
-**Recommendation:** Should fix before merge
-
-#### 3. **Real Attestation Test** (Low Priority)
-
-**Current:** Tests use mock/invalid attestations only
+**Current:** Tests use locally generated cert chains (covers parsing + verification logic)
 
 **Needed:**
 - At least one test with a real (or realistic mock) App Attest attestation object
@@ -123,6 +97,14 @@
 **Impact:** Risk of production failures with real iOS clients
 **Fix Effort:** 2-3 hours (need to generate real attestation)
 **Recommendation:** Nice to have, not blocking
+
+#### 2. **Documentation** (Low Priority)
+
+**Current:** JSDoc comments + internal docs
+
+**Needed:**
+- README section on iOS App Attest setup and required request fields
+- Minimal Swift example (how to compute `clientDataHash`, attest key, and sign the challenge)
 
 #### 4. **Documentation** (Low Priority)
 
@@ -328,33 +310,26 @@ message: attestationResult.error || 'iOS attestation verification failed'
 4. **Challenge freshness:** Prevents replay attacks (60s window)
 5. **Type validation:** Enforces P-256/ES256 only
 
-### ⚠️ Security Gaps
+### ⚠️ Security Gaps (Non-Blocking)
 
-1. **Missing Apple Root CA verification**
-   - Risk: Could accept forged attestations with fake CA
-   - Mitigation: Add Apple root CA to trust store
+1. **No rate limiting**
+   - Risk: DoS via repeated expensive CBOR/cert verification
+   - Mitigation: Add rate limiting (can be done at app level / edge gateway)
 
-2. **No challenge hash validation**
-   - Risk: Attestation could be reused with different challenge
-   - Mitigation: Verify client data hash includes challenge
+2. **No real Apple attestation fixture in CI**
+   - Risk: Unexpected parsing/format deltas from real devices
+   - Mitigation: Add an opt-in fixture or recorded attestation sample
 
-3. **No rate limiting**
-   - Risk: DoS via expensive CBOR parsing
-   - Mitigation: Add rate limiting (can be done at app level)
-
-**Overall Security Rating:** 7/10 (Good, but needs Apple CA verification)
+**Overall Security Rating:** 9/10 (Strong; chain-of-trust + nonce binding in place)
 
 ---
 
 ## Recommendations
 
-### Priority 1: Pre-Merge (Required for Production)
+### Priority 1: Pre-Merge
 
-1. ✅ **Add Apple Root CA Verification**
-   - Download Apple App Attest Root CA from https://www.apple.com/certificateauthority/
-   - Include in codebase as constant
-   - Verify certificate chain terminates at root
-   - Add test case for invalid root CA
+1. ✅ **Apple Root CA trust anchor + chain building implemented**
+2. ✅ **Challenge nonce binding implemented**
 
 2. ✅ **Add Challenge Hash Validation**
    - Verify client data hash in attestation matches challenge
