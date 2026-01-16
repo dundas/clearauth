@@ -39,7 +39,7 @@ export async function listUserDevices(
     .selectFrom('devices')
     .selectAll()
     .where('user_id', '=', userId)
-    .orderBy('last_used_at', 'desc nulls last')
+    .orderBy('last_used_at', 'desc')
     .orderBy('registered_at', 'desc')
     .execute()
 
@@ -70,7 +70,7 @@ export async function listActiveDevices(
     .selectAll()
     .where('user_id', '=', userId)
     .where('status', '=', 'active')
-    .orderBy('last_used_at', 'desc nulls last')
+    .orderBy('last_used_at', 'desc')
     .orderBy('registered_at', 'desc')
     .execute()
 

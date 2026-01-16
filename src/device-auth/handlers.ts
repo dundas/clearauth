@@ -19,6 +19,7 @@ import { verifyEIP191Signature, recoverEthereumPublicKey } from './web3-verifier
 import { verifySignature } from './signature-verifier.js'
 import { verifyIOSAttestation, extractPublicKeyFromAttestation } from './ios-verifier.js'
 import { verifyIntegrityToken } from './android-verifier.js'
+import { listUserDevices, revokeDevice } from './device-registration.js'
 import type { ChallengeResponse, DeviceRegistrationRequest, DeviceRegistrationResponse } from './types.js'
 import { isDevicePlatform, isKeyAlgorithm } from './types.js'
 
@@ -533,6 +534,140 @@ export async function handleChallengeRequest(
 }
 
 /**
+ * Handle GET /auth/devices - List user's registered devices
+ *
+ * Requires an authenticated session cookie. Returns all devices
+ * (both active and revoked) for the authenticated user.
+ *
+ * @param request - HTTP request
+ * @param config - ClearAuth configuration
+ * @returns HTTP response with device list or error
+ */
+export async function handleListDevicesRequest(
+  request: Request,
+  config: ClearAuthConfig
+): Promise<Response> {
+  try {
+    if (request.method !== 'GET') {
+      return new Response(
+        JSON.stringify({
+          error: 'method_not_allowed',
+          message: 'Only GET method is allowed',
+        } satisfies ErrorResponse),
+        {
+          status: 405,
+          headers: { 'Content-Type': 'application/json', Allow: 'GET' },
+        }
+      )
+    }
+
+    // Session-authenticated: must have a valid session cookie
+    const cookieName = config.session?.cookie?.name ?? 'session'
+    const sessionResult = await getSessionFromCookie(request, config.database, { cookieName })
+    if (!sessionResult) {
+      return new Response(
+        JSON.stringify({
+          error: 'unauthorized',
+          message: 'Valid session cookie required',
+        } satisfies ErrorResponse),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const devices = await listUserDevices(config.database, sessionResult.user.id)
+
+    return new Response(JSON.stringify({ devices }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  } catch (error) {
+    console.error('List devices failed:', error)
+    return new Response(
+      JSON.stringify({
+        error: 'internal_error',
+        message: error instanceof Error ? error.message : 'Failed to list devices',
+      } satisfies ErrorResponse),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+}
+
+/**
+ * Handle DELETE /auth/devices/:deviceId - Revoke a device
+ *
+ * Requires an authenticated session cookie. Revokes the specified device
+ * if it belongs to the authenticated user. Revoked devices remain in the
+ * database for audit purposes but cannot be used for authentication.
+ *
+ * @param request - HTTP request
+ * @param config - ClearAuth configuration
+ * @param deviceId - Device ID to revoke (from URL path)
+ * @returns HTTP response confirming revocation or error
+ */
+export async function handleRevokeDeviceRequest(
+  request: Request,
+  config: ClearAuthConfig,
+  deviceId: string
+): Promise<Response> {
+  try {
+    if (request.method !== 'DELETE') {
+      return new Response(
+        JSON.stringify({
+          error: 'method_not_allowed',
+          message: 'Only DELETE method is allowed',
+        } satisfies ErrorResponse),
+        {
+          status: 405,
+          headers: { 'Content-Type': 'application/json', Allow: 'DELETE' },
+        }
+      )
+    }
+
+    // Session-authenticated: must have a valid session cookie
+    const cookieName = config.session?.cookie?.name ?? 'session'
+    const sessionResult = await getSessionFromCookie(request, config.database, { cookieName })
+    if (!sessionResult) {
+      return new Response(
+        JSON.stringify({
+          error: 'unauthorized',
+          message: 'Valid session cookie required',
+        } satisfies ErrorResponse),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const revoked = await revokeDevice(config.database, deviceId, sessionResult.user.id)
+
+    if (!revoked) {
+      return new Response(
+        JSON.stringify({
+          error: 'not_found',
+          message: 'Device not found, already revoked, or does not belong to user',
+        } satisfies ErrorResponse),
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, deviceId }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    )
+  } catch (error) {
+    console.error('Revoke device failed:', error)
+    return new Response(
+      JSON.stringify({
+        error: 'internal_error',
+        message: error instanceof Error ? error.message : 'Failed to revoke device',
+      } satisfies ErrorResponse),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+}
+
+/**
  * Route device authentication requests to appropriate handlers
  *
  * @param request - HTTP request
@@ -561,6 +696,19 @@ export async function handleDeviceAuthRequest(
   // POST /auth/device/register
   if (url.pathname === '/auth/device/register') {
     return handleDeviceRegisterRequest(request, config)
+  }
+
+  // GET /auth/devices - List all devices for the user
+  if (url.pathname === '/auth/devices') {
+    return handleListDevicesRequest(request, config)
+  }
+
+  // DELETE /auth/devices/:deviceId - Revoke a specific device
+  if (url.pathname.startsWith('/auth/devices/')) {
+    const deviceId = url.pathname.substring('/auth/devices/'.length)
+    if (deviceId) {
+      return handleRevokeDeviceRequest(request, config, deviceId)
+    }
   }
 
   // Route not found
