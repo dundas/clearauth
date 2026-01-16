@@ -9,15 +9,17 @@
 
 ## Executive Summary
 
-**Current State**: 95% production-ready
+**Current State**: 90-95% production-ready
 **Blocking Issues**: 0
 **Estimated Effort to Complete**: 0 hours (non-blocking polish remains)
 
-The Android device authentication implementation is now **merge-ready**. The previously identified production and security blockers have been addressed:
+The Android device authentication implementation is now **merge-ready from a code/CI perspective**. The previously identified production and security blockers have been addressed:
 
 1. ✅ JWKS source is explicit and overrideable
 2. ✅ Device integrity verdict validation is strict and tested
 3. ✅ Package name binding is mandatory for Android registration
+
+**Note on merge bar:** GitHub currently shows **no formal approvals** (`reviewDecision` empty). If your repo requires an approving review before merge, that is the only remaining merge-blocker.
 
 ---
 
