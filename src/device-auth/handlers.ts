@@ -17,6 +17,7 @@ import { generateChallenge, storeChallenge, verifyChallenge } from './challenge.
 import { getSessionFromCookie } from '../session/validate.js'
 import { verifyEIP191Signature, recoverEthereumPublicKey } from './web3-verifier.js'
 import { verifySignature } from './signature-verifier.js'
+import { verifyIOSAttestation, extractPublicKeyFromAttestation } from './ios-verifier.js'
 import type { ChallengeResponse, DeviceRegistrationRequest, DeviceRegistrationResponse } from './types.js'
 import { isDevicePlatform, isKeyAlgorithm } from './types.js'
 
@@ -135,7 +136,7 @@ export async function handleDeviceRegisterRequest(
       )
     }
 
-    const { platform, publicKey, keyAlgorithm, walletAddress, challenge, signature } = body
+    const { platform, publicKey, keyAlgorithm, walletAddress, challenge, signature, attestation, keyId } = body
 
     if (!platform || !isDevicePlatform(platform)) {
       return new Response(
@@ -175,6 +176,29 @@ export async function handleDeviceRegisterRequest(
         } satisfies ErrorResponse),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       )
+    }
+
+    // iOS requires attestation and keyId
+    if (platform === 'ios') {
+      if (!attestation || typeof attestation !== 'string') {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_request',
+            message: 'attestation is required for iOS platform',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (!keyId || typeof keyId !== 'string') {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_request',
+            message: 'keyId is required for iOS platform',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // Verify and consume the challenge (one-time use)
@@ -236,6 +260,56 @@ export async function handleDeviceRegisterRequest(
             { status: 400, headers: { 'Content-Type': 'application/json' } }
           )
         }
+      }
+    } else if (platform === 'ios') {
+      // iOS: Verify App Attest attestation and extract public key
+      if (!attestation || !keyId) {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_request',
+            message: 'iOS platform requires attestation and keyId',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Verify attestation (includes certificate chain validation)
+      const attestationResult = await verifyIOSAttestation({
+        attestation,
+        challenge,
+        signature,
+        keyId,
+      })
+
+      if (!attestationResult.valid || !attestationResult.publicKey) {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_attestation',
+            message: attestationResult.error || 'iOS attestation verification failed',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Public key extracted from attestation
+      finalPublicKey = attestationResult.publicKey
+
+      // Optional: Verify the signature using the extracted public key
+      const okSig = await verifySignature({
+        message: challenge,
+        signature,
+        publicKey: finalPublicKey,
+        algorithm: keyAlgorithm,
+      })
+
+      if (!okSig) {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_signature',
+            message: 'Signature verification failed with extracted public key',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
       }
     } else {
       // Non-web3 devices: require public key for verification
