@@ -18,6 +18,7 @@ import { getSessionFromCookie } from '../session/validate.js'
 import { verifyEIP191Signature, recoverEthereumPublicKey } from './web3-verifier.js'
 import { verifySignature } from './signature-verifier.js'
 import { verifyIOSAttestation, extractPublicKeyFromAttestation } from './ios-verifier.js'
+import { verifyIntegrityToken } from './android-verifier.js'
 import type { ChallengeResponse, DeviceRegistrationRequest, DeviceRegistrationResponse } from './types.js'
 import { isDevicePlatform, isKeyAlgorithm } from './types.js'
 
@@ -136,7 +137,7 @@ export async function handleDeviceRegisterRequest(
       )
     }
 
-    const { platform, publicKey, keyAlgorithm, walletAddress, challenge, signature, attestation, keyId } = body
+    const { platform, publicKey, keyAlgorithm, walletAddress, challenge, signature, attestation, keyId, integrityToken } = body
 
     if (!platform || !isDevicePlatform(platform)) {
       return new Response(
@@ -195,6 +196,19 @@ export async function handleDeviceRegisterRequest(
           JSON.stringify({
             error: 'invalid_request',
             message: 'keyId is required for iOS platform',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    // Android requires integrityToken
+    if (platform === 'android') {
+      if (!integrityToken || typeof integrityToken !== 'string') {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_request',
+            message: 'integrityToken is required for Android platform',
           } satisfies ErrorResponse),
           { status: 400, headers: { 'Content-Type': 'application/json' } }
         )
@@ -311,8 +325,72 @@ export async function handleDeviceRegisterRequest(
           { status: 400, headers: { 'Content-Type': 'application/json' } }
         )
       }
+    } else if (platform === 'android') {
+      // Android: Verify Play Integrity token
+      if (!integrityToken) {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_request',
+            message: 'Android platform requires integrityToken',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (!config.android?.packageName) {
+        throw new Error(
+          'Android package name must be configured (config.android.packageName) for Android device registration'
+        )
+      }
+
+      // Verify Play Integrity token
+      const integrityResult = await verifyIntegrityToken(integrityToken, {
+        expectedNonce: challenge,
+        expectedPackageName: config.android.packageName,
+      })
+
+      if (!integrityResult.valid || !integrityResult.payload) {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_integrity_token',
+            message: integrityResult.error || 'Play Integrity verification failed',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // For Android, public key must be provided separately
+      if (!publicKey || typeof publicKey !== 'string') {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_request',
+            message: 'publicKey is required for Android device registration',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Verify the signature using the provided public key
+      const okSig = await verifySignature({
+        message: challenge,
+        signature,
+        publicKey,
+        algorithm: keyAlgorithm,
+      })
+
+      if (!okSig) {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_signature',
+            message: 'Signature verification failed',
+          } satisfies ErrorResponse),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      finalPublicKey = publicKey
     } else {
-      // Non-web3 devices: require public key for verification
+      // Non-web3/iOS/Android devices: require public key for verification
       if (!publicKey || typeof publicKey !== 'string') {
         return new Response(
           JSON.stringify({
