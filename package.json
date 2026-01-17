@@ -1,6 +1,6 @@
 {
   "name": "clearauth",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "ClearAuth: lightweight authentication library with Arctic OAuth, pluggable password hashing, and Kysely-backed storage",
   "keywords": [
     "clearauth",
@@ -13,7 +13,10 @@
     "authentication",
     "sessions",
     "typescript",
-    "cloudflare-workers"
+    "cloudflare-workers",
+    "device-auth",
+    "web3",
+    "passkeys"
   ],
   "author": "Dundas",
   "license": "MIT",
@@ -62,6 +65,10 @@
     "./jwt": {
       "import": "./dist/jwt.js",
       "types": "./dist/jwt.d.ts"
+    },
+    "./device-auth": {
+      "import": "./dist/device-auth.js",
+      "types": "./dist/device-auth.d.ts"
     }
   },
   "scripts": {
