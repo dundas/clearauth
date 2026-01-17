@@ -821,7 +821,7 @@ The client signs the challenge using their hardware key. See [Client SDK Example
   "platform": "web3", // or "ios" or "android"
   "challenge": "...",
   "signature": "...",
-  "publicKey": "...", // Required for non-Web3
+  "publicKey": "...", // Required for Android (iOS derives from attestation)
   "attestation": "...", // iOS only
   "keyId": "...", // iOS only
   "integrityToken": "..." // Android only
@@ -886,19 +886,69 @@ if service.isSupported {
 
 #### Android Play Integrity (Kotlin)
 ```kotlin
+import java.math.BigInteger
+import java.security.KeyPairGenerator
+import java.security.Signature
+import java.security.interfaces.ECPublicKey
+import java.security.spec.ECGenParameterSpec
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+
+fun bigIntToFixedBytes(value: BigInteger, size: Int): ByteArray {
+    val bytes = value.toByteArray()
+    // BigInteger may include a leading 0x00 to preserve sign; strip/pad to fixed size
+    val unsigned = if (bytes.size > 1 && bytes[0] == 0.toByte()) bytes.copyOfRange(1, bytes.size) else bytes
+    return when {
+        unsigned.size == size -> unsigned
+        unsigned.size < size -> ByteArray(size - unsigned.size) + unsigned
+        else -> unsigned.copyOfRange(unsigned.size - size, unsigned.size)
+    }
+}
+
+fun ecdsaDerToRaw64(der: ByteArray): ByteArray {
+    // DER: 30 <len> 02 <lenR> <R> 02 <lenS> <S>
+    if (der.isEmpty() || der[0] != 0x30.toByte()) throw IllegalArgumentException("Invalid DER signature")
+    var idx = 2
+    if (der[idx] != 0x02.toByte()) throw IllegalArgumentException("Invalid DER signature")
+    val lenR = der[idx + 1].toInt() and 0xff
+    val r = der.copyOfRange(idx + 2, idx + 2 + lenR)
+    idx = idx + 2 + lenR
+    if (der[idx] != 0x02.toByte()) throw IllegalArgumentException("Invalid DER signature")
+    val lenS = der[idx + 1].toInt() and 0xff
+    val s = der.copyOfRange(idx + 2, idx + 2 + lenS)
+
+    val rFixed = bigIntToFixedBytes(BigInteger(1, r), 32)
+    val sFixed = bigIntToFixedBytes(BigInteger(1, s), 32)
+    return rFixed + sFixed
+}
+
+fun toHex(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it) }
+
 // 1. Generate KeyStore key pair (do this once)
-val keyPairGenerator = KeyPairGenerator.getInstance(
-    KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore"
-)
+val keyPairGenerator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore")
 keyPairGenerator.initialize(
     KeyGenParameterSpec.Builder("device_auth_key", KeyProperties.PURPOSE_SIGN)
         .setDigests(KeyProperties.DIGEST_SHA256)
-        .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
+        .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1")) // P-256
         .build()
 )
 val keyPair = keyPairGenerator.generateKeyPair()
 
-// 2. Request integrity token
+// 2. Extract uncompressed public key (04 || X || Y), hex-encoded
+val pub = keyPair.public as ECPublicKey
+val x = bigIntToFixedBytes(pub.w.affineX, 32)
+val y = bigIntToFixedBytes(pub.w.affineY, 32)
+val publicKeyHex = toHex(byteArrayOf(0x04) + x + y)
+
+// 3. Sign challenge and convert signature to raw 64-byte (r||s) hex
+val derSig = Signature.getInstance("SHA256withECDSA").run {
+    initSign(keyPair.private)
+    update(challenge.toByteArray(Charsets.UTF_8))
+    sign()
+}
+val signatureHex = toHex(ecdsaDerToRaw64(derSig))
+
+// 4. Request integrity token
 val integrityManager = IntegrityManagerFactory.create(applicationContext)
 val tokenResponse = integrityManager.requestIntegrityToken(
     IntegrityTokenRequest.builder()
@@ -909,14 +959,14 @@ val tokenResponse = integrityManager.requestIntegrityToken(
 
 tokenResponse.addOnSuccessListener { response ->
     val integrityToken = response.token()
-    
-    // 3. Register
+
+    // 5. Register
     val body = mapOf(
         "platform" to "android",
         "integrityToken" to integrityToken,
         "challenge" to challenge,
-        "publicKey" to publicKeyHex, // Hex-encoded public key
-        "signature" to signatureHex, // Hex-encoded signature of challenge
+        "publicKey" to publicKeyHex,
+        "signature" to signatureHex,
         "keyAlgorithm" to "P-256"
     )
     // ... send to /auth/device/register with Content-Type: application/json
@@ -977,7 +1027,8 @@ Required headers for signed requests:
 
 Payload reconstruction format: \`METHOD|PATH|BODY_HASH|CHALLENGE\`
 
-Note: \`BODY_HASH\` is the hex-encoded SHA-256 hash of the request body. For GET requests with no body, use an empty string hash.
+Note: `BODY_HASH` is the hex-encoded SHA-256 hash of the request body. For GET requests with no body, use SHA-256(""):
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 
 ### JWT Device Binding
 

@@ -16,7 +16,10 @@
     "cloudflare-workers",
     "device-auth",
     "web3",
-    "passkeys"
+    "device-attestation",
+    "hardware-backed-auth",
+    "app-attest",
+    "play-integrity"
   ],
   "author": "Dundas",
   "license": "MIT",
