@@ -816,13 +816,9 @@ The client signs the challenge using their hardware key. See [Client SDK Example
 
 **Note**: Device registration requires an authenticated session. Users must log in (via email/password or OAuth) before registering a hardware device.
 
-```typescript
-POST /auth/device/register
-Cookie: session=...
-Content-Type: application/json
-
+```json
 {
-  "platform": "web3" | "ios" | "android",
+  "platform": "web3", // or "ios" or "android"
   "challenge": "...",
   "signature": "...",
   "publicKey": "...", // Required for non-Web3
@@ -867,7 +863,8 @@ if service.isSupported {
     
     // 2. Get attestation
     let challengeData = Data(challenge.utf8)
-    let clientDataHash = Data(SHA256.hash(data: challengeData))
+    let hash = SHA256.hash(data: challengeData)
+    let clientDataHash = Data(hash)
     let attestation = try await service.attestKey(keyId, clientDataHash: clientDataHash)
     
     // 3. Register
@@ -899,6 +896,7 @@ tokenResponse.addOnSuccessListener { response ->
     val integrityToken = response.token()
     
     // 2. Register (Assume you have generated a KeyStore pair)
+    // See: https://developer.android.com/training/articles/keystore
     val body = mapOf(
         "platform" to "android",
         "integrityToken" to integrityToken,
