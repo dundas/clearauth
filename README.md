@@ -828,7 +828,21 @@ The client signs the challenge using their hardware key. See [Client SDK Example
 }
 ```
 
-### 2. Client SDK Examples
+### 2. Importing Device Auth
+
+Device auth helpers are available from both the main entrypoint and the dedicated entrypoint.
+
+Recommended (explicit, tree-shake friendly):
+```typescript
+import { verifyDeviceSignature } from 'clearauth/device-auth'
+```
+
+Convenience re-export (equivalent):
+```typescript
+import { verifyDeviceSignature } from 'clearauth'
+```
+
+### 3. Client SDK Examples
 
 #### Web3 Wallet (TypeScript/ethers.js)
 ```typescript
@@ -973,7 +987,7 @@ tokenResponse.addOnSuccessListener { response ->
 }
 ```
 
-### 3. Device Management
+### 4. Device Management
 
 Users can list and revoke their registered devices through the management API.
 
@@ -1003,7 +1017,7 @@ Response:
 { "success": true, "deviceId": "dev_ios_abc123" }
 ```
 
-### 4. Request Signature Verification (Middleware)
+### 5. Request Signature Verification (Middleware)
 
 Secure your API endpoints by requiring a cryptographic signature from a registered device.
 
@@ -1022,13 +1036,18 @@ if (!result.isValid) {
 
 Required headers for signed requests:
 - `Authorization`: `Bearer <device_bound_jwt>`
-- `X-Signature`: Hex or Base64 signature of the request payload
+- `X-Device-Signature`: Signature of the reconstructed payload (hex or base64)
 - `X-Challenge`: The challenge that was signed
+- `X-Device-Id`: Optional if the JWT is already device-bound (otherwise required)
 
-Payload reconstruction format: \`METHOD|PATH|BODY_HASH|CHALLENGE\`
+Payload reconstruction format: `METHOD|PATH|BODY_HASH|CHALLENGE`
 
-Note: `BODY_HASH` is the hex-encoded SHA-256 hash of the request body. For GET requests with no body, use SHA-256(""):
-`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+Note: `BODY_HASH` is the hex-encoded SHA-256 hash of the request body.
+- For GET/HEAD requests, `BODY_HASH` is an empty string.
+- For requests with an empty body, `BODY_HASH` is also an empty string.
+
+Example (no body):
+`GET|/api/me||<challenge>`
 
 ### JWT Device Binding
 
