@@ -45,15 +45,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Troubleshooting guide updated for cross-architecture native binding issues
 
   **Testing:**
-  - 194 new comprehensive tests covering all device authentication modules
+  - 194 comprehensive tests covering all device authentication modules (added in v0.5.0-v0.6.0)
   - Integration tests for all new HTTP endpoints
-  - Total test suite increased to 518 passing tests
+  - Total test suite now at 518 passing tests
 
 ### Fixed
 
-- **Cross-Architecture Native Bindings** - Implemented lazy-loading for `@node-rs/argon2` to prevent startup crashes when running on mismatched architectures (e.g., x64 Node on ARM64). The library now only attempts to load native bindings when hashing is actually performed, and provides clear error messages for environment mismatches.
-- **Security Validation** - Hardened URL validation for device IDs to prevent path traversal and empty ID bypass.
-- **Error Information Leakage** - Standardized generic error messages in API responses while maintaining detailed internal logging.
+- **Cross-Architecture Native Bindings** - Implemented lazy-loading for \`@node-rs/argon2\` to prevent startup crashes when running on mismatched architectures (e.g., x64 Node on ARM64). (Fixed in #25)
+- **Security Validation** - Hardened URL validation for device IDs to prevent path traversal and empty ID bypass. (Fixed in #25)
+- **Error Information Leakage** - Standardized generic error messages in API responses while maintaining detailed internal logging. (Fixed in #25)
 
 ## [0.5.0] - 2026-01-15
 

@@ -832,13 +832,14 @@ The client signs the challenge using their hardware key. See [Client SDK Example
 
 #### Web3 Wallet (TypeScript/ethers.js)
 ```typescript
-// Sign challenge with EIP-191 personal_sign
+// 1. Sign challenge with EIP-191 personal_sign
+// MetaMask will display: "Sign this message to authenticate:\n\n<challenge>"
 const signature = await window.ethereum.request({
   method: 'personal_sign',
   params: [challenge, walletAddress]
 })
 
-// Register
+// 2. Register
 await fetch('/auth/device/register', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -867,13 +868,16 @@ if service.isSupported {
     let clientDataHash = Data(hash)
     let attestation = try await service.attestKey(keyId, clientDataHash: clientDataHash)
     
-    // 3. Register
+    // 3. Sign the challenge (generate assertion)
+    let signatureData = try await service.generateAssertion(keyId, clientDataHash: clientDataHash)
+    
+    // 4. Register
     let body = [
         "platform": "ios",
         "keyId": keyId,
         "attestation": attestation.base64EncodedString(),
         "challenge": challenge,
-        "signature": "...", // ECDSA signature of challenge using generated key
+        "signature": signatureData.base64EncodedString(),
         "keyAlgorithm": "P-256"
     ]
     // ... send to /auth/device/register with Content-Type: application/json
@@ -882,9 +886,20 @@ if service.isSupported {
 
 #### Android Play Integrity (Kotlin)
 ```kotlin
-val integrityManager = IntegrityManagerFactory.create(applicationContext)
+// 1. Generate KeyStore key pair (do this once)
+val keyPairGenerator = KeyPairGenerator.getInstance(
+    KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore"
+)
+keyPairGenerator.initialize(
+    KeyGenParameterSpec.Builder("device_auth_key", KeyProperties.PURPOSE_SIGN)
+        .setDigests(KeyProperties.DIGEST_SHA256)
+        .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
+        .build()
+)
+val keyPair = keyPairGenerator.generateKeyPair()
 
-// 1. Request integrity token
+// 2. Request integrity token
+val integrityManager = IntegrityManagerFactory.create(applicationContext)
 val tokenResponse = integrityManager.requestIntegrityToken(
     IntegrityTokenRequest.builder()
         .setCloudProjectNumber(YOUR_PROJECT_NUMBER) // From Google Cloud Console
@@ -895,14 +910,13 @@ val tokenResponse = integrityManager.requestIntegrityToken(
 tokenResponse.addOnSuccessListener { response ->
     val integrityToken = response.token()
     
-    // 2. Register (Assume you have generated a KeyStore pair)
-    // See: https://developer.android.com/training/articles/keystore
+    // 3. Register
     val body = mapOf(
         "platform" to "android",
         "integrityToken" to integrityToken,
         "challenge" to challenge,
-        "publicKey" to publicKeyHex, // Hex-encoded public key from KeyStore
-        "signature" to signatureHex, // Hex-encoded ECDSA signature of challenge
+        "publicKey" to publicKeyHex, // Hex-encoded public key
+        "signature" to signatureHex, // Hex-encoded signature of challenge
         "keyAlgorithm" to "P-256"
     )
     // ... send to /auth/device/register with Content-Type: application/json
@@ -961,7 +975,9 @@ Required headers for signed requests:
 - `X-Signature`: Hex or Base64 signature of the request payload
 - `X-Challenge`: The challenge that was signed
 
-Payload reconstruction format: `METHOD + PATH + BODY + CHALLENGE`
+Payload reconstruction format: \`METHOD|PATH|BODY_HASH|CHALLENGE\`
+
+Note: \`BODY_HASH\` is the hex-encoded SHA-256 hash of the request body. For GET requests with no body, use an empty string hash.
 
 ### JWT Device Binding
 
