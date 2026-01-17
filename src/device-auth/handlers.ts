@@ -705,9 +705,26 @@ export async function handleDeviceAuthRequest(
 
   // DELETE /auth/devices/:deviceId - Revoke a specific device
   if (url.pathname.startsWith('/auth/devices/')) {
-    const deviceId = url.pathname.substring('/auth/devices/'.length)
+    const rawDeviceId = url.pathname.substring('/auth/devices/'.length)
+    const deviceId = rawDeviceId.trim()
+
+    // Basic validation to prevent path traversal and ensure safe format
+    // Allow alphanumeric, underscore, hyphen. Must start with 'dev_'.
+    const isValidFormat = /^dev_[a-zA-Z0-9_-]+$/.test(deviceId)
+
     if (deviceId) {
-      return handleRevokeDeviceRequest(request, config, deviceId)
+      if (isValidFormat) {
+        return handleRevokeDeviceRequest(request, config, deviceId)
+      }
+
+      // Invalid format - return 400 Bad Request
+      return new Response(
+        JSON.stringify({
+          error: 'invalid_request',
+          message: 'Invalid device ID format',
+        } satisfies ErrorResponse),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
     }
   }
 

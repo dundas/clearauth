@@ -39,11 +39,33 @@ export async function listUserDevices(
     .selectFrom('devices')
     .selectAll()
     .where('user_id', '=', userId)
-    .orderBy('last_used_at', 'desc')
-    .orderBy('registered_at', 'desc')
     .execute()
 
-  return devices.map(toDeviceInfo)
+  // Sort in JavaScript to handle NULLs consistently across DBs
+  // We want NULL last_used_at to be at the bottom
+  const sortedDevices = devices.sort((a, b) => {
+    // 1. Sort by last_used_at (descending, nulls last)
+    const timeA = a.last_used_at ? new Date(a.last_used_at).getTime() : -1
+    const timeB = b.last_used_at ? new Date(b.last_used_at).getTime() : -1
+    
+    // If timestamps are different (and at least one is not null/new)
+    if (timeA !== timeB) {
+      // If both are valid times, simple desc sort
+      if (timeA !== -1 && timeB !== -1) {
+        return timeB - timeA
+      }
+      // If one is null (-1), put it last
+      // valid time (high number) vs -1 -> valid comes first
+      return timeB - timeA 
+    }
+
+    // 2. Sort by registered_at (descending) as tie-breaker
+    const regA = new Date(a.registered_at).getTime()
+    const regB = new Date(b.registered_at).getTime()
+    return regB - regA
+  })
+
+  return sortedDevices.map(toDeviceInfo)
 }
 
 /**
@@ -70,11 +92,25 @@ export async function listActiveDevices(
     .selectAll()
     .where('user_id', '=', userId)
     .where('status', '=', 'active')
-    .orderBy('last_used_at', 'desc')
-    .orderBy('registered_at', 'desc')
     .execute()
 
-  return devices.map(toDeviceInfo)
+  // Sort in JavaScript to handle NULLs consistently across DBs
+  const sortedDevices = devices.sort((a, b) => {
+    // 1. Sort by last_used_at (descending, nulls last)
+    const timeA = a.last_used_at ? new Date(a.last_used_at).getTime() : -1
+    const timeB = b.last_used_at ? new Date(b.last_used_at).getTime() : -1
+    
+    if (timeA !== timeB) {
+      return timeB - timeA
+    }
+
+    // 2. Sort by registered_at (descending)
+    const regA = new Date(a.registered_at).getTime()
+    const regB = new Date(b.registered_at).getTime()
+    return regB - regA
+  })
+
+  return sortedDevices.map(toDeviceInfo)
 }
 
 /**
