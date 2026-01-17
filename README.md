@@ -777,15 +777,27 @@ All routes are handled by `handleClearAuthRequest()`:
 | `/auth/oauth/google` | GET | Initiate Google OAuth flow |
 | `/auth/callback/google` | GET | Google OAuth callback |
 | `/auth/challenge` | POST | Generate challenge for device auth |
-| `/auth/device/register` | POST | Register Web3 wallet device |
+| `/auth/device/register` | POST | Register device (Web3, iOS, Android) |
+| `/auth/devices` | GET | List user's registered devices |
+| `/auth/devices/:deviceId` | DELETE | Revoke a registered device |
 
-## Device Authentication (Web3 Wallets)
+## Device Authentication
 
-ClearAuth supports hardware-backed device authentication using Web3 wallets (MetaMask, WalletConnect, etc.) with EIP-191 signature verification. This enables phishing-resistant authentication where users prove ownership of their Ethereum wallet.
+ClearAuth supports hardware-backed device authentication using Web3 wallets (MetaMask), iOS (App Attest), and Android (Play Integrity). This enables phishing-resistant authentication where users prove ownership of a hardware-secured key.
 
-### Challenge-Response Flow
+### Supported Platforms
 
-**1. Generate Challenge** (Server)
+| Platform | Attestation Method | Key Type | Security Level |
+|----------|-------------------|----------|----------------|
+| **Web3** | EIP-191 Signature | secp256k1 | High (Hardware Wallet) |
+| **iOS**  | Apple App Attest | P-256 | High (Secure Enclave) |
+| **Android** | Play Integrity | P-256/RSA | High (KeyStore/TEE) |
+
+### 1. Challenge-Response Flow
+
+All device registrations and authentications follow a challenge-response pattern:
+
+**Step 1: Generate Challenge** (Server)
 ```typescript
 POST /auth/challenge
 
@@ -797,92 +809,245 @@ Response:
 }
 ```
 
-**2. Sign Challenge** (Client-side with MetaMask)
-```typescript
-// Request wallet connection
-const accounts = await window.ethereum.request({ 
-  method: 'eth_requestAccounts' 
-})
-const walletAddress = accounts[0]
+**Step 2: Sign/Attest Challenge** (Client)
+The client signs the challenge using their hardware key. See [Client SDK Examples](#client-sdk-examples) below.
 
-// Sign challenge with EIP-191 personal_sign
+**Step 3: Register Device** (Server)
+
+**Note**: Device registration requires an authenticated session. Users must log in (via email/password or OAuth) before registering a hardware device.
+
+```json
+{
+  "platform": "web3", // or "ios" or "android"
+  "challenge": "...",
+  "signature": "...",
+  "publicKey": "...", // Required for Android (iOS derives from attestation)
+  "attestation": "...", // iOS only
+  "keyId": "...", // iOS only
+  "integrityToken": "..." // Android only
+}
+```
+
+### 2. Importing Device Auth
+
+Device auth helpers are available from both the main entrypoint and the dedicated entrypoint.
+
+Recommended (explicit, tree-shake friendly):
+```typescript
+import { verifyDeviceSignature } from 'clearauth/device-auth'
+```
+
+Convenience re-export (equivalent):
+```typescript
+import { verifyDeviceSignature } from 'clearauth'
+```
+
+### 3. Client SDK Examples
+
+#### Web3 Wallet (TypeScript/ethers.js)
+```typescript
+// 1. Sign challenge with EIP-191 personal_sign
+// MetaMask will display: "Sign this message to authenticate:\n\n<challenge>"
 const signature = await window.ethereum.request({
   method: 'personal_sign',
   params: [challenge, walletAddress]
 })
+
+// 2. Register
+await fetch('/auth/device/register', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    platform: 'web3',
+    walletAddress,
+    challenge,
+    signature
+  })
+})
 ```
 
-**3. Register Device** (Server - requires session authentication)
-```typescript
-POST /auth/device/register
-Cookie: session=...
-Content-Type: application/json
+#### iOS App Attest (Swift)
+```swift
+import DeviceCheck
+import CryptoKit
 
-{
-  "platform": "web3",
-  "publicKey": "0x04...",  // Optional - will be recovered from signature
-  "keyAlgorithm": "secp256k1",
-  "walletAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f42a0d",
-  "challenge": "a1b2c3...def|1705326960000",
-  "signature": "0x..."
+let service = DCAppAttestService.shared
+if service.isSupported {
+    // 1. Generate key
+    let keyId = try await service.generateKey()
+    
+    // 2. Get attestation
+    let challengeData = Data(challenge.utf8)
+    let hash = SHA256.hash(data: challengeData)
+    let clientDataHash = Data(hash)
+    let attestation = try await service.attestKey(keyId, clientDataHash: clientDataHash)
+    
+    // 3. Sign the challenge (generate assertion)
+    let signatureData = try await service.generateAssertion(keyId, clientDataHash: clientDataHash)
+    
+    // 4. Register
+    let body = [
+        "platform": "ios",
+        "keyId": keyId,
+        "attestation": attestation.base64EncodedString(),
+        "challenge": challenge,
+        "signature": signatureData.base64EncodedString(),
+        "keyAlgorithm": "P-256"
+    ]
+    // ... send to /auth/device/register with Content-Type: application/json
 }
+```
+
+#### Android Play Integrity (Kotlin)
+```kotlin
+import java.math.BigInteger
+import java.security.KeyPairGenerator
+import java.security.Signature
+import java.security.interfaces.ECPublicKey
+import java.security.spec.ECGenParameterSpec
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+
+fun bigIntToFixedBytes(value: BigInteger, size: Int): ByteArray {
+    val bytes = value.toByteArray()
+    // BigInteger may include a leading 0x00 to preserve sign; strip/pad to fixed size
+    val unsigned = if (bytes.size > 1 && bytes[0] == 0.toByte()) bytes.copyOfRange(1, bytes.size) else bytes
+    return when {
+        unsigned.size == size -> unsigned
+        unsigned.size < size -> ByteArray(size - unsigned.size) + unsigned
+        else -> unsigned.copyOfRange(unsigned.size - size, unsigned.size)
+    }
+}
+
+fun ecdsaDerToRaw64(der: ByteArray): ByteArray {
+    // DER: 30 <len> 02 <lenR> <R> 02 <lenS> <S>
+    if (der.isEmpty() || der[0] != 0x30.toByte()) throw IllegalArgumentException("Invalid DER signature")
+    var idx = 2
+    if (der[idx] != 0x02.toByte()) throw IllegalArgumentException("Invalid DER signature")
+    val lenR = der[idx + 1].toInt() and 0xff
+    val r = der.copyOfRange(idx + 2, idx + 2 + lenR)
+    idx = idx + 2 + lenR
+    if (der[idx] != 0x02.toByte()) throw IllegalArgumentException("Invalid DER signature")
+    val lenS = der[idx + 1].toInt() and 0xff
+    val s = der.copyOfRange(idx + 2, idx + 2 + lenS)
+
+    val rFixed = bigIntToFixedBytes(BigInteger(1, r), 32)
+    val sFixed = bigIntToFixedBytes(BigInteger(1, s), 32)
+    return rFixed + sFixed
+}
+
+fun toHex(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it) }
+
+// 1. Generate KeyStore key pair (do this once)
+val keyPairGenerator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore")
+keyPairGenerator.initialize(
+    KeyGenParameterSpec.Builder("device_auth_key", KeyProperties.PURPOSE_SIGN)
+        .setDigests(KeyProperties.DIGEST_SHA256)
+        .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1")) // P-256
+        .build()
+)
+val keyPair = keyPairGenerator.generateKeyPair()
+
+// 2. Extract uncompressed public key (04 || X || Y), hex-encoded
+val pub = keyPair.public as ECPublicKey
+val x = bigIntToFixedBytes(pub.w.affineX, 32)
+val y = bigIntToFixedBytes(pub.w.affineY, 32)
+val publicKeyHex = toHex(byteArrayOf(0x04) + x + y)
+
+// 3. Sign challenge and convert signature to raw 64-byte (r||s) hex
+val derSig = Signature.getInstance("SHA256withECDSA").run {
+    initSign(keyPair.private)
+    update(challenge.toByteArray(Charsets.UTF_8))
+    sign()
+}
+val signatureHex = toHex(ecdsaDerToRaw64(derSig))
+
+// 4. Request integrity token
+val integrityManager = IntegrityManagerFactory.create(applicationContext)
+val tokenResponse = integrityManager.requestIntegrityToken(
+    IntegrityTokenRequest.builder()
+        .setCloudProjectNumber(YOUR_PROJECT_NUMBER) // From Google Cloud Console
+        .setNonce(challenge) // Use challenge string as nonce
+        .build()
+)
+
+tokenResponse.addOnSuccessListener { response ->
+    val integrityToken = response.token()
+
+    // 5. Register
+    val body = mapOf(
+        "platform" to "android",
+        "integrityToken" to integrityToken,
+        "challenge" to challenge,
+        "publicKey" to publicKeyHex,
+        "signature" to signatureHex,
+        "keyAlgorithm" to "P-256"
+    )
+    // ... send to /auth/device/register with Content-Type: application/json
+}
+```
+
+### 4. Device Management
+
+Users can list and revoke their registered devices through the management API.
+
+**List Devices**
+```typescript
+GET /auth/devices
 
 Response:
 {
-  "deviceId": "dev_web3_abc123",
-  "userId": "user-456",
-  "platform": "web3",
-  "status": "active",
-  "registeredAt": "2026-01-15T12:16:00.000Z"
+  "devices": [
+    {
+      "deviceId": "dev_ios_abc123",
+      "platform": "ios",
+      "status": "active",
+      "registeredAt": "...",
+      "lastUsedAt": "..."
+    }
+  ]
 }
 ```
 
-### Programmatic Usage
-
-**Verify EIP-191 Signatures**
+**Revoke Device**
 ```typescript
-import { 
-  verifyEIP191Signature, 
-  recoverEthereumAddress,
-  recoverEthereumPublicKey 
-} from 'clearauth'
+DELETE /auth/devices/dev_ios_abc123
 
-// Verify signature against expected address
-const isValid = verifyEIP191Signature(
-  'challenge|1234567890',
-  '0x1234...abc',
-  '0x742d35Cc6634C0532925a3b844Bc9e7595f42a0d'
-)
-
-// Recover address from signature
-const address = recoverEthereumAddress(
-  'challenge|1234567890',
-  '0x1234...abc'
-)
-// Returns: '0x742d35cc6634c0532925a3b844bc9e7595f42a0d'
-
-// Recover uncompressed public key
-const publicKey = recoverEthereumPublicKey(
-  'challenge|1234567890',
-  '0x1234...abc'
-)
-// Returns: '0x04...' (65 bytes, uncompressed)
+Response:
+{ "success": true, "deviceId": "dev_ios_abc123" }
 ```
 
-**Generate and Verify Challenges**
+### 5. Request Signature Verification (Middleware)
+
+Secure your API endpoints by requiring a cryptographic signature from a registered device.
+
 ```typescript
-import { generateChallenge, verifyChallenge } from 'clearauth'
+import { verifyDeviceSignature } from 'clearauth/device-auth'
 
-// Generate challenge
-const challenge = generateChallenge()
-// { challenge: "nonce|timestamp", expiresIn: 600, createdAt: "..." }
+// In your API handler/middleware
+const result = await verifyDeviceSignature(request, config)
 
-// Store in database
-await storeChallenge(config, challenge.challenge)
+if (!result.isValid) {
+  return new Response('Invalid device signature', { status: 401 })
+}
 
-// Verify and consume (one-time use)
-const isValid = await verifyChallenge(config, challenge.challenge)
+// result.deviceId, result.userId, result.device available
 ```
+
+Required headers for signed requests:
+- `Authorization`: `Bearer <device_bound_jwt>`
+- `X-Device-Signature`: Signature of the reconstructed payload (hex or base64)
+- `X-Challenge`: The challenge that was signed
+- `X-Device-Id`: Optional if the JWT is already device-bound (otherwise required)
+
+Payload reconstruction format: `METHOD|PATH|BODY_HASH|CHALLENGE`
+
+Note: `BODY_HASH` is the hex-encoded SHA-256 hash of the request body.
+- For GET/HEAD requests, `BODY_HASH` is an empty string.
+- For requests with an empty body, `BODY_HASH` is also an empty string.
+
+Example (no body):
+`GET|/api/me||<challenge>`
 
 ### JWT Device Binding
 
@@ -898,25 +1063,6 @@ Content-Type: application/json
   "email": "user@example.com",
   "deviceId": "dev_web3_abc123"  // Optional
 }
-
-Response:
-{
-  "accessToken": "eyJhbGc...",  // JWT with deviceId claim
-  "refreshToken": "rt_...",
-  "tokenType": "Bearer",
-  "expiresIn": 900
-}
-```
-
-**Token Payload** (when deviceId provided):
-```json
-{
-  "sub": "user-123",
-  "email": "user@example.com",
-  "deviceId": "dev_web3_abc123",
-  "iat": 1705326960,
-  "exp": 1705327860
-}
 ```
 
 **Validate Device-Bound Token**
@@ -924,21 +1070,10 @@ Response:
 import { validateBearerToken } from 'clearauth'
 
 const payload = await validateBearerToken(request, jwtConfig)
-if (payload?.deviceId === 'dev_web3_abc123') {
+if (payload?.deviceId) {
   // Token is bound to specific device
 }
 ```
-
-### Security Features
-
-- ✅ **EIP-191 Standard** - Ethereum personal_sign message format
-- ✅ **Keccak-256 Hashing** - Ethereum-compatible hashing
-- ✅ **Address Recovery** - Cryptographic proof of wallet ownership
-- ✅ **Public Key Storage** - Recovers and stores uncompressed public keys
-- ✅ **Challenge-Response** - One-time use challenges with 10-minute TTL
-- ✅ **Session Authentication** - Device registration requires active session
-- ✅ **Replay Protection** - Challenges deleted after successful verification
-- ✅ **Recovery Byte Normalization** - Supports v values 0-3, 27-30, EIP-155 (v >= 35)
 
 ## How It Works
 

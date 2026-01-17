@@ -5,49 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-01-17
 
 ### Added
 
-- **Web3 Wallet Device Registration** - Hardware-backed authentication for MetaMask and Web3 wallets
-  - **EIP-191 Signature Verification** - Personal sign message verification with Ethereum address recovery
-  - **Device Registration Endpoint** - `POST /auth/device/register` with session authentication and challenge-response flow
-  - **JWT Device Binding** - Optional `deviceId` claim in JWT access tokens for device-bound authentication
-  - **Public Key Recovery** - Recovers and stores uncompressed Ethereum public keys (0x04...) for Web3 devices
-  - **Challenge-Response Flow** - One-time challenge consumption with 10-minute TTL for replay protection
-  - **Recovery Byte Normalization** - Supports v values 0-3, 27-30, and EIP-155 (v >= 35) for maximum compatibility
+- **Hardware-Backed Device Authentication** - Phishing-resistant authentication for Web3, iOS, and Android
+  - **Multi-Platform Support** - Unified API for Web3 wallets, iOS App Attest, and Android Play Integrity
+  - **Web3 Wallet Registration** - Hardware-backed authentication for MetaMask and Web3 wallets (EIP-191)
+  - **iOS App Attest Support** - Secure Enclave-backed key attestation and verification
+  - **Android Play Integrity Support** - Hardware-backed key attestation via Google Play Integrity API
+  - **Request Signature Middleware** - Cryptographic verification of every API request via `verifyDeviceSignature()`
+  - **Device Management API** - Endpoints for users to list, monitor, and revoke their registered devices
+  - **Device-Bound JWTs** - Optional `deviceId` claim in JWT access tokens for enhanced session security
+  - **Architecture Compatibility** - Lazy-loading native bindings to prevent crashes on mismatched architectures
 
   **New HTTP Endpoints:**
-  - `POST /auth/device/register` - Register Web3 wallet device (requires session authentication)
+  - `POST /auth/challenge` - Generate one-time cryptographic challenge
+  - `POST /auth/device/register` - Register a new hardware device (Web3, iOS, or Android)
+  - `GET /auth/devices` - List all registered devices for the authenticated user (with pagination)
+  - `DELETE /auth/devices/:deviceId` - Revoke a registered device (soft-delete with audit trail)
 
   **New Functions:**
-  - `verifyEIP191Signature()` - Verify EIP-191 personal_sign signatures against expected address
-  - `recoverEthereumAddress()` - Recover Ethereum address from EIP-191 signature
-  - `recoverEthereumPublicKey()` - Recover uncompressed public key (0x04...) from signature
-  - `verifyAndRecoverAddress()` - Combined verification and address recovery with error handling
-  - `formatEIP191Message()` - Format message according to EIP-191 standard
-  - `hashEIP191Message()` - Hash message with Keccak-256 for verification
+  - `verifyDeviceSignature()` - Middleware to verify request signatures from registered devices
+  - `listUserDevices()` / `listActiveDevices()` - Data layer functions for device management
+  - `revokeDevice()` - Soft-delete device revocation
+  - `verifyIOSAttestation()` - Complete iOS App Attest verification chain
+  - `verifyIntegrityToken()` - Google Play Integrity token verification
+  - `verifyEIP191Signature()` - Web3 personal_sign verification
+  - `generateChallenge()` / `verifyChallenge()` - Challenge-response infrastructure
 
   **Database Schema:**
-  - Uses existing `devices` table (migration 007) and `challenges` table (migration 008)
-  - Stores `wallet_address`, `public_key` (uncompressed), `key_algorithm: 'secp256k1'` for Web3 devices
-  - No new migrations required - fully compatible with existing schema
+  - Uses existing `devices` table (introduced in v0.5.0) for hardware key storage
+  - Uses existing `challenges` table (introduced in v0.5.0) for one-time challenge storage
+  - Optimized indexes for user-based device queries and revocation
 
-  **JWT Enhancement:**
-  - Optional `deviceId` claim in JWT access tokens for device-bound sessions
-  - `POST /auth/token` accepts optional `deviceId` parameter
-  - `createAccessToken()` / `verifyAccessToken()` support `deviceId` claim
-  - `validateBearerToken()` returns `deviceId` when present in token
-
-  **Dependencies:**
-  - Uses existing `@noble/curves` (secp256k1) and `@noble/hashes` (keccak-256)
-  - Zero new dependencies added
+  **Documentation:**
+  - Comprehensive README section with multi-platform device auth guide
+  - Client SDK examples for TypeScript (Web3), Swift (iOS), and Kotlin (Android)
+  - Troubleshooting guide updated for cross-architecture native binding issues
 
   **Testing:**
-  - 28 comprehensive EIP-191 verification tests (format, hash, recovery, edge cases)
-  - 11 device registration handler tests (success, failure, authentication)
-  - 10 JWT device binding tests (create, verify, validate)
-  - All 441 tests passing (100% coverage on new code)
+  - 194 comprehensive tests covering all device authentication modules (added in v0.5.0-v0.6.0)
+  - Integration tests for all new HTTP endpoints
+  - Total test suite now at 518 passing tests
+
+### Fixed
+
+- **Cross-Architecture Native Bindings** - Implemented lazy-loading for \`@node-rs/argon2\` to prevent startup crashes when running on mismatched architectures (e.g., x64 Node on ARM64). (Fixed in #25)
+- **Security Validation** - Hardened URL validation for device IDs to prevent path traversal and empty ID bypass. (Fixed in #25)
+- **Error Information Leakage** - Standardized generic error messages in API responses while maintaining detailed internal logging. (Fixed in #25)
 
 ## [0.5.0] - 2026-01-15
 
