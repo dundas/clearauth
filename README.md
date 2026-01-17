@@ -813,6 +813,9 @@ Response:
 The client signs the challenge using their hardware key. See [Client SDK Examples](#client-sdk-examples) below.
 
 **Step 3: Register Device** (Server)
+
+**Note**: Device registration requires an authenticated session. Users must log in (via email/password or OAuth) before registering a hardware device.
+
 ```typescript
 POST /auth/device/register
 Cookie: session=...
@@ -842,6 +845,7 @@ const signature = await window.ethereum.request({
 // Register
 await fetch('/auth/device/register', {
   method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     platform: 'web3',
     walletAddress,
@@ -854,6 +858,7 @@ await fetch('/auth/device/register', {
 #### iOS App Attest (Swift)
 ```swift
 import DeviceCheck
+import CryptoKit
 
 let service = DCAppAttestService.shared
 if service.isSupported {
@@ -861,7 +866,8 @@ if service.isSupported {
     let keyId = try await service.generateKey()
     
     // 2. Get attestation
-    let clientDataHash = Data(challenge.utf8).sha256()
+    let challengeData = Data(challenge.utf8)
+    let clientDataHash = Data(SHA256.hash(data: challengeData))
     let attestation = try await service.attestKey(keyId, clientDataHash: clientDataHash)
     
     // 3. Register
@@ -870,10 +876,10 @@ if service.isSupported {
         "keyId": keyId,
         "attestation": attestation.base64EncodedString(),
         "challenge": challenge,
-        "signature": "...", // Signature of challenge
+        "signature": "...", // ECDSA signature of challenge using generated key
         "keyAlgorithm": "P-256"
     ]
-    // ... send to /auth/device/register
+    // ... send to /auth/device/register with Content-Type: application/json
 }
 ```
 
@@ -884,24 +890,24 @@ val integrityManager = IntegrityManagerFactory.create(applicationContext)
 // 1. Request integrity token
 val tokenResponse = integrityManager.requestIntegrityToken(
     IntegrityTokenRequest.builder()
-        .setCloudProjectNumber(YOUR_PROJECT_NUMBER)
-        .setNonce(challenge) // Challenge as nonce
+        .setCloudProjectNumber(YOUR_PROJECT_NUMBER) // From Google Cloud Console
+        .setNonce(challenge) // Use challenge string as nonce
         .build()
 )
 
 tokenResponse.addOnSuccessListener { response ->
     val integrityToken = response.token()
     
-    // 2. Register
+    // 2. Register (Assume you have generated a KeyStore pair)
     val body = mapOf(
         "platform" to "android",
         "integrityToken" to integrityToken,
         "challenge" to challenge,
-        "publicKey" to publicKeyHex,
-        "signature" to signatureHex,
+        "publicKey" to publicKeyHex, // Hex-encoded public key from KeyStore
+        "signature" to signatureHex, // Hex-encoded ECDSA signature of challenge
         "keyAlgorithm" to "P-256"
     )
-    // ... send to /auth/device/register
+    // ... send to /auth/device/register with Content-Type: application/json
 }
 ```
 

@@ -35,8 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `generateChallenge()` / `verifyChallenge()` - Challenge-response infrastructure
 
   **Database Schema:**
-  - New `devices` table (migration 007) for hardware key storage
-  - New `challenges` table (migration 008) for one-time challenge storage
+  - Uses existing `devices` table (introduced in v0.5.0) for hardware key storage
+  - Uses existing `challenges` table (introduced in v0.5.0) for one-time challenge storage
   - Optimized indexes for user-based device queries and revocation
 
   **Documentation:**
