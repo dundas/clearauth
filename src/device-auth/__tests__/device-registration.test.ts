@@ -24,10 +24,26 @@ function createMockDb(): Kysely<Database> {
       selectAll: () => ({
         where: (col: string, op: string, val: any) => {
           const filtered = devices.filter(d => d[col] === val)
+          const resultChain = {
+            execute: async () => filtered,
+            executeTakeFirst: async () => filtered[0] || null,
+          }
+          const limitOffsetChain = {
+            limit: () => ({
+              offset: () => resultChain
+            }),
+            ...resultChain
+          }
+          
           return {
             where: (col2: string, op2: string, val2: any) => ({
               execute: async () => filtered.filter(d => d[col2] === val2),
               executeTakeFirst: async () => filtered.find(d => d[col2] === val2) || null,
+              limit: () => ({
+                offset: () => ({
+                  execute: async () => filtered.filter(d => d[col2] === val2),
+                })
+              }),
               orderBy: () => ({
                 orderBy: () => ({
                   execute: async () => filtered.filter(d => d[col2] === val2),
@@ -39,8 +55,7 @@ function createMockDb(): Kysely<Database> {
                 execute: async () => filtered,
               }),
             }),
-            execute: async () => filtered,
-            executeTakeFirst: async () => filtered[0] || null,
+            ...limitOffsetChain
           }
         },
         executeTakeFirst: async () => devices[0] || null,

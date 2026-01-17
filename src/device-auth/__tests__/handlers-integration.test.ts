@@ -65,25 +65,46 @@ function createMockDb(): Kysely<Database> {
   const mockDb = {
     selectFrom: (table: string) => ({
       selectAll: () => ({
-        where: (col: string, op: string, value: any) => ({
-          // For listUserDevices: selectAll().where(user_id)
-          execute: async () => {
-            if (table === 'devices' && col === 'user_id') {
-              return Array.from(devices.values()).filter(d => d.user_id === value)
-            }
-            return []
-          },
-          // For getSession: selectAll().where(id)
-          executeTakeFirst: async () => {
-            if (table === 'sessions' && col === 'id') {
-              return sessions.get(value) || null
-            }
-            if (table === 'users' && col === 'id') {
-              return users.get(value) || null
-            }
-            return null
-          },
-        }),
+        where: (col: string, op: string, value: any) => {
+          const resultChain = {
+            // For listUserDevices: selectAll().where(user_id)
+            execute: async () => {
+              if (table === 'devices' && col === 'user_id') {
+                return Array.from(devices.values()).filter(d => d.user_id === value)
+              }
+              return []
+            },
+            // For getSession: selectAll().where(id)
+            executeTakeFirst: async () => {
+              if (table === 'sessions' && col === 'id') {
+                return sessions.get(value) || null
+              }
+              if (table === 'users' && col === 'id') {
+                return users.get(value) || null
+              }
+              return null
+            },
+          }
+          const limitOffsetChain = {
+            limit: () => ({
+              offset: () => resultChain
+            }),
+            ...resultChain
+          }
+
+          return {
+            where: (col2: string, op2: string, value2: any) => ({
+              ...limitOffsetChain,
+              execute: async () => {
+                if (table === 'devices' && col === 'user_id' && col2 === 'status') {
+                  return Array.from(devices.values()).filter(d => d.user_id === value && d.status === value2)
+                }
+                return []
+              }
+            }),
+            ...limitOffsetChain
+          }
+        },
       }),
       select: (_cols: any) => ({
         where: (col: string, op: string, value: any) => ({

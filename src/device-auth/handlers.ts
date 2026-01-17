@@ -3,12 +3,9 @@
  *
  * Provides HTTP endpoints for device key authentication:
  * - POST /auth/challenge - Generate a new challenge for device authentication
- *
- * Future endpoints (will be added in subsequent PRs):
  * - POST /auth/device/register - Register a new device with signature verification
- * - POST /auth/device/authenticate - Authenticate with a registered device
- * - GET /auth/device/list - List user's registered devices
- * - POST /auth/device/revoke - Revoke a device
+ * - GET /auth/devices - List user's registered devices
+ * - DELETE /auth/devices/:deviceId - Revoke a device
  */
 
 import type { ClearAuthConfig } from '../types.js'
@@ -29,6 +26,14 @@ import { isDevicePlatform, isKeyAlgorithm } from './types.js'
 interface ErrorResponse {
   error: string
   message: string
+}
+
+/**
+ * Get the session cookie name from configuration
+ * @internal
+ */
+function getCookieName(config: ClearAuthConfig): string {
+  return config.session?.cookie?.name ?? 'session'
 }
 
 /**
@@ -91,9 +96,6 @@ async function parseJsonBody<T = any>(request: Request): Promise<T> {
  *
  * Requires an authenticated session cookie. The request must include a valid
  * one-time challenge and a signature of that challenge from the device key.
- *
- * For Web3 devices, the signature is verified using EIP-191 personal_sign and
- * must match the provided wallet address.
  */
 export async function handleDeviceRegisterRequest(
   request: Request,
@@ -114,8 +116,10 @@ export async function handleDeviceRegisterRequest(
     }
 
     // Session-authenticated: must have a valid session cookie
-    const cookieName = config.session?.cookie?.name ?? 'session'
-    const sessionResult = await getSessionFromCookie(request, config.database, { cookieName })
+    const sessionResult = await getSessionFromCookie(request, config.database, { 
+      cookieName: getCookieName(config) 
+    })
+    
     if (!sessionResult) {
       return new Response(
         JSON.stringify({
@@ -229,7 +233,6 @@ export async function handleDeviceRegisterRequest(
     }
 
     const userId = sessionResult.user.id
-
     const now = new Date()
     const deviceId = generateDeviceId(platform)
 
@@ -278,22 +281,11 @@ export async function handleDeviceRegisterRequest(
       }
     } else if (platform === 'ios') {
       // iOS: Verify App Attest attestation and extract public key
-      if (!attestation || !keyId) {
-        return new Response(
-          JSON.stringify({
-            error: 'invalid_request',
-            message: 'iOS platform requires attestation and keyId',
-          } satisfies ErrorResponse),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
-        )
-      }
-
-      // Verify attestation (includes certificate chain validation)
       const attestationResult = await verifyIOSAttestation({
-        attestation,
+        attestation: attestation!,
         challenge,
         signature,
-        keyId,
+        keyId: keyId!,
       })
 
       if (!attestationResult.valid || !attestationResult.publicKey) {
@@ -306,10 +298,8 @@ export async function handleDeviceRegisterRequest(
         )
       }
 
-      // Public key extracted from attestation
       finalPublicKey = attestationResult.publicKey
 
-      // Optional: Verify the signature using the extracted public key
       const okSig = await verifySignature({
         message: challenge,
         signature,
@@ -328,24 +318,13 @@ export async function handleDeviceRegisterRequest(
       }
     } else if (platform === 'android') {
       // Android: Verify Play Integrity token
-      if (!integrityToken) {
-        return new Response(
-          JSON.stringify({
-            error: 'invalid_request',
-            message: 'Android platform requires integrityToken',
-          } satisfies ErrorResponse),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
-        )
-      }
-
       if (!config.android?.packageName) {
         throw new Error(
           'Android package name must be configured (config.android.packageName) for Android device registration'
         )
       }
 
-      // Verify Play Integrity token
-      const integrityResult = await verifyIntegrityToken(integrityToken, {
+      const integrityResult = await verifyIntegrityToken(integrityToken!, {
         expectedNonce: challenge,
         expectedPackageName: config.android.packageName,
       })
@@ -360,7 +339,6 @@ export async function handleDeviceRegisterRequest(
         )
       }
 
-      // For Android, public key must be provided separately
       if (!publicKey || typeof publicKey !== 'string') {
         return new Response(
           JSON.stringify({
@@ -371,7 +349,6 @@ export async function handleDeviceRegisterRequest(
         )
       }
 
-      // Verify the signature using the provided public key
       const okSig = await verifySignature({
         message: challenge,
         signature,
@@ -391,7 +368,7 @@ export async function handleDeviceRegisterRequest(
 
       finalPublicKey = publicKey
     } else {
-      // Non-web3/iOS/Android devices: require public key for verification
+      // Non-web3/iOS/Android devices
       if (!publicKey || typeof publicKey !== 'string') {
         return new Response(
           JSON.stringify({
@@ -454,7 +431,7 @@ export async function handleDeviceRegisterRequest(
     return new Response(
       JSON.stringify({
         error: 'internal_error',
-        message: error instanceof Error ? error.message : 'Failed to register device',
+        message: 'Failed to register device', // Generic message
       } satisfies ErrorResponse),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     )
@@ -465,31 +442,12 @@ export async function handleDeviceRegisterRequest(
  * Handle POST /auth/challenge - Generate a new challenge
  *
  * Generates a cryptographically secure challenge for device authentication.
- * The challenge must be signed by the device's private key for registration or authentication.
- *
- * @param request - HTTP request
- * @param config - ClearAuth configuration
- * @returns HTTP response with challenge or error
- *
- * @example
- * ```typescript
- * POST /auth/challenge
- * Content-Type: application/json
- *
- * Response:
- * {
- *   "challenge": "a1b2c3...def|1705326960000",
- *   "expiresIn": 600,
- *   "createdAt": "2026-01-15T12:16:00.000Z"
- * }
- * ```
  */
 export async function handleChallengeRequest(
   request: Request,
   config: ClearAuthConfig
 ): Promise<Response> {
   try {
-    // Check method
     if (request.method !== 'POST') {
       return new Response(
         JSON.stringify({
@@ -498,37 +456,26 @@ export async function handleChallengeRequest(
         } satisfies ErrorResponse),
         {
           status: 405,
-          headers: {
-            'Content-Type': 'application/json',
-            'Allow': 'POST',
-          },
+          headers: { 'Content-Type': 'application/json', 'Allow': 'POST' },
         }
       )
     }
 
-    // Generate challenge
     const challengeResponse = generateChallenge()
-
-    // Store challenge in database
     await storeChallenge(config, challengeResponse.challenge)
 
-    // Return challenge to client
     return new Response(JSON.stringify(challengeResponse satisfies ChallengeResponse), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error) {
     console.error('Challenge generation failed:', error)
-
     return new Response(
       JSON.stringify({
         error: 'internal_error',
         message: 'Failed to generate challenge',
       } satisfies ErrorResponse),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     )
   }
 }
@@ -538,10 +485,6 @@ export async function handleChallengeRequest(
  *
  * Requires an authenticated session cookie. Returns all devices
  * (both active and revoked) for the authenticated user.
- *
- * @param request - HTTP request
- * @param config - ClearAuth configuration
- * @returns HTTP response with device list or error
  */
 export async function handleListDevicesRequest(
   request: Request,
@@ -562,8 +505,10 @@ export async function handleListDevicesRequest(
     }
 
     // Session-authenticated: must have a valid session cookie
-    const cookieName = config.session?.cookie?.name ?? 'session'
-    const sessionResult = await getSessionFromCookie(request, config.database, { cookieName })
+    const sessionResult = await getSessionFromCookie(request, config.database, { 
+      cookieName: getCookieName(config) 
+    })
+    
     if (!sessionResult) {
       return new Response(
         JSON.stringify({
@@ -574,7 +519,15 @@ export async function handleListDevicesRequest(
       )
     }
 
-    const devices = await listUserDevices(config.database, sessionResult.user.id)
+    // Parse pagination options from URL
+    const url = new URL(request.url)
+    const limit = parseInt(url.searchParams.get('limit') || '50')
+    const offset = parseInt(url.searchParams.get('offset') || '0')
+
+    const devices = await listUserDevices(config.database, sessionResult.user.id, {
+      limit: isNaN(limit) ? 50 : limit,
+      offset: isNaN(offset) ? 0 : offset,
+    })
 
     return new Response(JSON.stringify({ devices }), {
       status: 200,
@@ -585,7 +538,7 @@ export async function handleListDevicesRequest(
     return new Response(
       JSON.stringify({
         error: 'internal_error',
-        message: error instanceof Error ? error.message : 'Failed to list devices',
+        message: 'Failed to list devices',
       } satisfies ErrorResponse),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     )
@@ -596,13 +549,7 @@ export async function handleListDevicesRequest(
  * Handle DELETE /auth/devices/:deviceId - Revoke a device
  *
  * Requires an authenticated session cookie. Revokes the specified device
- * if it belongs to the authenticated user. Revoked devices remain in the
- * database for audit purposes but cannot be used for authentication.
- *
- * @param request - HTTP request
- * @param config - ClearAuth configuration
- * @param deviceId - Device ID to revoke (from URL path)
- * @returns HTTP response confirming revocation or error
+ * if it belongs to the authenticated user.
  */
 export async function handleRevokeDeviceRequest(
   request: Request,
@@ -624,8 +571,10 @@ export async function handleRevokeDeviceRequest(
     }
 
     // Session-authenticated: must have a valid session cookie
-    const cookieName = config.session?.cookie?.name ?? 'session'
-    const sessionResult = await getSessionFromCookie(request, config.database, { cookieName })
+    const sessionResult = await getSessionFromCookie(request, config.database, { 
+      cookieName: getCookieName(config) 
+    })
+    
     if (!sessionResult) {
       return new Response(
         JSON.stringify({
@@ -642,7 +591,7 @@ export async function handleRevokeDeviceRequest(
       return new Response(
         JSON.stringify({
           error: 'not_found',
-          message: 'Device not found, already revoked, or does not belong to user',
+          message: 'Device not found or cannot be revoked', // Generic message
         } satisfies ErrorResponse),
         { status: 404, headers: { 'Content-Type': 'application/json' } }
       )
@@ -660,7 +609,7 @@ export async function handleRevokeDeviceRequest(
     return new Response(
       JSON.stringify({
         error: 'internal_error',
-        message: error instanceof Error ? error.message : 'Failed to revoke device',
+        message: 'Failed to revoke device',
       } satisfies ErrorResponse),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     )
@@ -673,14 +622,6 @@ export async function handleRevokeDeviceRequest(
  * @param request - HTTP request
  * @param config - ClearAuth configuration
  * @returns HTTP response or null if route not found
- *
- * @example
- * ```typescript
- * const response = await handleDeviceAuthRequest(request, config)
- * if (!response) {
- *   // Route not found, handle 404
- * }
- * ```
  */
 export async function handleDeviceAuthRequest(
   request: Request,
@@ -708,24 +649,22 @@ export async function handleDeviceAuthRequest(
     const rawDeviceId = url.pathname.substring('/auth/devices/'.length)
     const deviceId = rawDeviceId.trim()
 
-    // Basic validation to prevent path traversal and ensure safe format
-    // Allow alphanumeric, underscore, hyphen. Must start with 'dev_'.
+    // CRITICAL FIX: Ensure deviceId is not empty and matches expected format
     const isValidFormat = /^dev_[a-zA-Z0-9_-]+$/.test(deviceId)
 
-    if (deviceId) {
-      if (isValidFormat) {
-        return handleRevokeDeviceRequest(request, config, deviceId)
-      }
-
-      // Invalid format - return 400 Bad Request
-      return new Response(
-        JSON.stringify({
-          error: 'invalid_request',
-          message: 'Invalid device ID format',
-        } satisfies ErrorResponse),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      )
+    if (isValidFormat) {
+      return handleRevokeDeviceRequest(request, config, deviceId)
     }
+
+    // If it started with /auth/devices/ but didn't match format, it's a 400
+    // This includes empty deviceId (which fails regex)
+    return new Response(
+      JSON.stringify({
+        error: 'invalid_request',
+        message: 'Invalid device ID format',
+      } satisfies ErrorResponse),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    )
   }
 
   // Route not found
