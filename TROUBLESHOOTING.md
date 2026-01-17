@@ -2,6 +2,34 @@
 
 > **Note**: ClearAuth requires explicit configuration. The library does not read environment variables automatically. All configuration must be passed to `createClearAuth()` directly.
 
+## Platform & Architecture Issues
+
+### "Failed to load native argon2 bindings"
+
+**Cause**: You are running on an architecture where the `argon2` native bindings are not pre-compiled (e.g., specific Linux distributions, older ARM chips) or there is a mismatch between your Node.js architecture and the OS (e.g., x64 Node on ARM64 macOS).
+
+**Solution 1 (Recommended): Use Bun or Match Architecture**
+If you are developing locally on macOS ARM64 (M1/M2/M3), ensure you are using the ARM64 version of Node.js or use Bun (which handles this automatically).
+```bash
+# Check your node architecture
+node -p "process.arch"
+# Should be 'arm64' on Apple Silicon
+```
+
+**Solution 2: Use PBKDF2 (Universal)**
+If you are on an unsupported server architecture (like IBM s390x or legacy Unix), switch to the PBKDF2 password hasher. It uses the standard WebCrypto API and works on **all** JavaScript environments (Node.js, Cloudflare Workers, Browsers, Deno) without any native dependencies.
+
+```ts
+import { createClearAuth, createPbkdf2PasswordHasher } from "clearauth"
+
+const auth = createClearAuth({
+  // ... other config
+  passwordHasher: createPbkdf2PasswordHasher() 
+})
+```
+
+**Note:** The `edge` entrypoint (`clearauth/edge`) uses PBKDF2 by default, so it is always safe.
+
 ## Configuration Issues
 
 ### "appId is required" or "apiKey is required"
