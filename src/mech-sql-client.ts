@@ -85,6 +85,13 @@ export class MechSqlClient {
     this.logger = config.logger ?? getDefaultLogger()
     this.maxRetries = config.maxRetries ?? 2
 
+    if (rawSchemaId !== this.appSchemaId) {
+      this.logger.debug("Sanitized appSchemaId for Mech Storage compatibility", {
+        original: rawSchemaId,
+        sanitized: this.appSchemaId
+      })
+    }
+
     // Validate configuration
     validateUrl(this.baseUrl, "baseUrl")
     validateNonEmpty(this.appId, "appId")
@@ -98,6 +105,7 @@ export class MechSqlClient {
     this.logger.debug("MechSqlClient initialized", {
       baseUrl: this.baseUrl,
       appId: this.appId,
+      appSchemaId: this.appSchemaId,
       timeout: this.timeout,
       maxRetries: this.maxRetries
     })
