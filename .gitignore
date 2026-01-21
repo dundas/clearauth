@@ -11,6 +11,8 @@ dist/
 
 .claude/
 .windsurf/
+.codex/
+.gemini/
 ai-dev-tasks/
 
 .wrangler/

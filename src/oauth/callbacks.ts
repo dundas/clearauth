@@ -176,15 +176,21 @@ export async function validateSession(
   db: Kysely<Database>,
   sessionId: string
 ): Promise<User | null> {
-  const result = await db
-    .selectFrom('sessions')
-    .innerJoin('users', 'users.id', 'sessions.user_id')
-    .selectAll('users')
-    .where('sessions.id', '=', sessionId)
-    .where('sessions.expires_at', '>', new Date())
-    .executeTakeFirst()
+  try {
+    const result = await db
+      .selectFrom('sessions')
+      .innerJoin('users', 'users.id', 'sessions.user_id')
+      .selectAll('users')
+      .where('sessions.id', '=', sessionId)
+      .where('sessions.expires_at', '>', new Date())
+      .executeTakeFirst()
 
-  return result || null
+    return result || null
+  } catch (error) {
+    // Return null if database query fails (e.g. stale session ID, table missing)
+    // The error is handled gracefully as "unauthenticated"
+    return null
+  }
 }
 
 /**

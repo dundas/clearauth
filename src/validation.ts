@@ -5,8 +5,9 @@
 import { ClearAuthConfigError } from "./errors.js"
 
 // UUID regex that also accepts common prefixes like "app_", "user_", etc.
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const PREFIXED_UUID_REGEX = /^[a-z]+_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// Also allows underscores instead of hyphens for sanitized IDs
+const UUID_REGEX = /^[0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12}$/i
+const PREFIXED_UUID_REGEX = /^[a-z]+_[0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12}$/i
 
 /**
  * Validate that a string is a valid URL

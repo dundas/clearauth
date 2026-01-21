@@ -22,6 +22,19 @@ describe("validation", () => {
       expect(() => validateUuid(validUuid)).not.toThrow()
     })
 
+    it("should accept underscored UUIDs", () => {
+      const underscoredUuid = "550e8400_e29b_41d4_a716_446655440000"
+      expect(() => validateUuid(underscoredUuid)).not.toThrow()
+    })
+
+    it("should accept prefixed UUIDs", () => {
+      const prefixedUuid = "app_550e8400-e29b-41d4-a716-446655440000"
+      expect(() => validateUuid(prefixedUuid)).not.toThrow()
+      
+      const prefixedUnderscoredUuid = "app_550e8400_e29b_41d4_a716_446655440000"
+      expect(() => validateUuid(prefixedUnderscoredUuid)).not.toThrow()
+    })
+
     it("should reject invalid UUIDs", () => {
       expect(() => validateUuid("not-a-uuid")).toThrow(ClearAuthConfigError)
       expect(() => validateUuid("550e8400-e29b-41d4-a716")).toThrow(ClearAuthConfigError)
