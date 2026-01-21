@@ -183,27 +183,12 @@ export async function validateSession(
     const result = await db
       .selectFrom('sessions')
       .innerJoin('users', 'users.id', 'sessions.user_id')
-      .select([
-        'users.id',
-        'users.email',
-        'users.email_verified',
-        'users.github_id',
-        'users.google_id',
-        'users.discord_id',
-        'users.apple_id',
-        'users.microsoft_id',
-        'users.linkedin_id',
-        'users.meta_id',
-        'users.name',
-        'users.avatar_url',
-        'users.created_at',
-        'users.updated_at'
-      ])
+      .selectAll('users')
       .where('sessions.id', '=', sessionId)
       .where('sessions.expires_at', '>', new Date())
       .executeTakeFirst()
 
-    return (result as User) || null
+    return result || null
   } catch (error) {
     // Log the error using the provided logger to prevent 500 errors for the client
     // during background session checks. This aids debugging while maintaining resilience.
