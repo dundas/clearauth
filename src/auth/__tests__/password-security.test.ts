@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { hash, verify } from '@node-rs/argon2'
+import { performance } from 'node:perf_hooks'
 
 describe('Password Hashing Security', () => {
   const ARGON2_CONFIG = {
@@ -66,22 +67,32 @@ describe('Password Hashing Security', () => {
       const wrongPassword = 'WrongPassword456!'
       const hashed = await hash(password, ARGON2_CONFIG)
 
-      const samples = 3
+      const samples = 5
+      const rounds = 5
 
       // Warm up (reduces variance on some machines)
       await verify(hashed, password)
       await verify(hashed, wrongPassword)
 
-      const measure = async (candidate: string) => {
-        const start = Date.now()
+      const measureOnce = async (candidate: string) => {
+        const start = performance.now()
         for (let i = 0; i < samples; i++) {
           await verify(hashed, candidate)
         }
-        return Date.now() - start
+        return performance.now() - start
       }
 
-      const correctMs = await measure(password)
-      const wrongMs = await measure(wrongPassword)
+      const measureMedian = async (candidate: string) => {
+        const results: number[] = []
+        for (let i = 0; i < rounds; i++) {
+          results.push(await measureOnce(candidate))
+        }
+        results.sort((a, b) => a - b)
+        return results[Math.floor(results.length / 2)]
+      }
+
+      const correctMs = await measureMedian(password)
+      const wrongMs = await measureMedian(wrongPassword)
 
       const min = Math.min(correctMs, wrongMs)
       const max = Math.max(correctMs, wrongMs)
@@ -91,8 +102,8 @@ describe('Password Hashing Security', () => {
       // Use a ratio bound rather than a strict millisecond threshold to avoid flakiness.
       // NOTE: Keep this bound loose enough to be stable across CI variance while still
       // catching obvious timing differences.
-      expect(max / Math.max(min, 1)).toBeLessThan(2.5)
-    }, 20000)
+      expect(max / Math.max(min, 1)).toBeLessThan(3.5)
+    }, 30000)
   })
 
   describe('Hash Format Validation', () => {

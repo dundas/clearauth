@@ -30,7 +30,8 @@ export type MechSqlResponse = {
  *
  * All other fields have sensible defaults:
  * - baseUrl: defaults to "https://storage.mechdna.net"
- * - appSchemaId: defaults to appId (most common case)
+ * - appSchemaId: defaults to appId (most common case). Hyphens are automatically 
+ *   replaced with underscores to match Mech Storage database conventions.
  * - timeout: defaults to 30000ms
  * - maxRetries: defaults to 2
  */
@@ -74,11 +75,22 @@ export class MechSqlClient {
     this.baseUrl = config.baseUrl ?? "https://storage.mechdna.net"
     this.appId = config.appId
     // appSchemaId defaults to appId if not explicitly provided (most common case)
-    this.appSchemaId = config.appSchemaId ?? this.appId
+    // IMPORTANT: Mech Storage sanitizes table names and schemas by replacing hyphens with underscores.
+    // We sanitize appSchemaId here to ensure it matches the actual database schema/table names.
+    const rawSchemaId = config.appSchemaId ?? this.appId
+    this.appSchemaId = rawSchemaId.replace(/-/g, "_")
+    
     this.apiKey = config.apiKey
     this.timeout = config.timeout ?? 30000
     this.logger = config.logger ?? getDefaultLogger()
     this.maxRetries = config.maxRetries ?? 2
+
+    if (rawSchemaId !== this.appSchemaId) {
+      this.logger.debug("Sanitized appSchemaId for Mech Storage compatibility", {
+        original: rawSchemaId,
+        sanitized: this.appSchemaId
+      })
+    }
 
     // Validate configuration
     validateUrl(this.baseUrl, "baseUrl")
@@ -93,6 +105,7 @@ export class MechSqlClient {
     this.logger.debug("MechSqlClient initialized", {
       baseUrl: this.baseUrl,
       appId: this.appId,
+      appSchemaId: this.appSchemaId,
       timeout: this.timeout,
       maxRetries: this.maxRetries
     })

@@ -107,6 +107,8 @@ export type CreateClearAuthOptions = {
   password?: ClearAuthConfig['password']
   /** Password hashing implementation (optional) */
   passwordHasher?: ClearAuthConfig['passwordHasher']
+  /** Custom logger instance (optional) */
+  logger?: ClearAuthConfig['logger']
 }
 
 /**
@@ -201,7 +203,7 @@ function isSimpleDatabaseConfig(db: unknown): db is SimpleDatabaseConfig {
  * ```
  */
 export function createClearAuth(options: CreateClearAuthOptions): ClearAuthConfig {
-  const logger = getDefaultLogger()
+  const logger = options.logger ?? getDefaultLogger()
 
   // Validate required fields
   if (!options.secret) {
@@ -236,6 +238,7 @@ export function createClearAuth(options: CreateClearAuthOptions): ClearAuthConfi
       appSchemaId: options.database.appSchemaId,
       timeout: options.database.timeout,
       maxRetries: options.database.maxRetries,
+      logger: logger,
     }
   } else if ('config' in options.database) {
     // Full config format: { config: MechKyselyConfig }
@@ -264,6 +267,7 @@ export function createClearAuth(options: CreateClearAuthOptions): ClearAuthConfi
         minLength: 8,
       },
       passwordHasher: options.passwordHasher ?? createPbkdf2PasswordHasher(),
+      logger,
     }
 
     return config

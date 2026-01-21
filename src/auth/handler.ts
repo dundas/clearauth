@@ -646,8 +646,8 @@ async function handleSession(request: Request, config: ClearAuthConfig): Promise
     return jsonResponse({ user: null })
   }
 
-  // Validate session
-  const user = await validateSession(config.database, sessionId)
+  // Validate session - pass logger from config
+  const user = await validateSession(config.database, sessionId, config.logger)
 
   if (!user) {
     return jsonResponse({ user: null })

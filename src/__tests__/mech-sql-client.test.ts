@@ -51,6 +51,16 @@ describe("MechSqlClient", () => {
       })
       expect(client).toBeDefined()
     })
+
+    it("should sanitize appSchemaId by replacing hyphens with underscores", () => {
+      const client = new MechSqlClient(baseConfig)
+      // Accessing private property via any for testing
+      expect((client as any).appSchemaId).toBe(validUuid.replace(/-/g, "_"))
+      
+      const prefixedUuid = "app_550e8400-e29b-41d4-a716-446655440000"
+      const client2 = new MechSqlClient({ ...baseConfig, appSchemaId: prefixedUuid })
+      expect((client2 as any).appSchemaId).toBe(prefixedUuid.replace(/-/g, "_"))
+    })
   })
 
   describe("execute", () => {

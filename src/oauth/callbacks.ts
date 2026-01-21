@@ -12,6 +12,7 @@ import { base64url } from 'oslo/encoding'
 import type { Kysely } from 'kysely'
 import type { Database, User, NewUser, NewSession } from '../database/schema.js'
 import type { OAuthUserProfile, RequestContext, OAuthProvider } from '../types.js'
+import { Logger, getDefaultLogger } from '../logger.js'
 
 /**
  * Generate a secure random session ID
@@ -162,6 +163,7 @@ export async function createSession(
  *
  * @param db - Kysely database instance
  * @param sessionId - Session ID to validate
+ * @param logger - Optional logger for error reporting
  * @returns User if session is valid, null otherwise
  *
  * @example
@@ -174,17 +176,27 @@ export async function createSession(
  */
 export async function validateSession(
   db: Kysely<Database>,
-  sessionId: string
+  sessionId: string,
+  logger: Logger = getDefaultLogger()
 ): Promise<User | null> {
-  const result = await db
-    .selectFrom('sessions')
-    .innerJoin('users', 'users.id', 'sessions.user_id')
-    .selectAll('users')
-    .where('sessions.id', '=', sessionId)
-    .where('sessions.expires_at', '>', new Date())
-    .executeTakeFirst()
+  try {
+    const result = await db
+      .selectFrom('sessions')
+      .innerJoin('users', 'users.id', 'sessions.user_id')
+      .selectAll('users')
+      .where('sessions.id', '=', sessionId)
+      .where('sessions.expires_at', '>', new Date())
+      .executeTakeFirst()
 
-  return result || null
+    return result || null
+  } catch (error) {
+    // Log the error using the provided logger to prevent 500 errors for the client
+    // during background session checks. This aids debugging while maintaining resilience.
+    // Redact sessionId to avoid exposing sensitive tokens in logs
+    const redactedSessionId = sessionId ? `${sessionId.slice(0, 8)}...` : 'unknown'
+    logger.error('Session validation error', { error, sessionId: redactedSessionId })
+    return null
+  }
 }
 
 /**

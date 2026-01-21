@@ -7,6 +7,7 @@
 import type { Kysely } from 'kysely'
 import type { Database } from './database/schema.js'
 import type { PasswordHasher } from './password-hasher.js'
+import type { Logger } from './logger.js'
 
 /**
  * OAuth Provider Configuration
@@ -240,6 +241,11 @@ export interface ClearAuthConfig {
    * CORS configuration for browser clients
    */
   cors?: CorsConfig
+
+  /**
+   * Custom logger instance
+   */
+  logger?: Logger
 
   /**
    * Production mode flag
