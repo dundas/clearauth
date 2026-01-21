@@ -8,7 +8,9 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
   const TEST_API_KEY = 'test-api-key'
   const TEST_SECRET = 'test-secret-key-at-least-32-chars-long'
   const hasher = createPbkdf2PasswordHasher()
-  
+
+  const originalFetch = global.fetch
+
   const config = createClearAuth({
     secret: TEST_SECRET,
     baseUrl: 'https://example.com',
@@ -20,6 +22,7 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
 
   afterEach(() => {
     vi.clearAllMocks()
+    global.fetch = originalFetch
   })
 
   it("should complete a full user lifecycle", async () => {
@@ -27,13 +30,18 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
     const password = "Password123!"
     const userId = "user-uuid-123"
     const sessionId = "session-random-id-123"
-    
+
+    const expectedMechUrl = `https://storage.mechdna.net/api/apps/${TEST_APP_ID}/postgresql/query`
+    const expectedAppSchemaId = TEST_APP_ID.replace(/-/g, "_")
+
     // 1. Mock Registration
     // - Check if user exists (none)
     // - Insert user
     // - Insert verification token
     // - Insert session (via createSession)
-    global.fetch = vi.fn()
+    const registerFetchMock = vi.fn()
+    global.fetch = registerFetchMock as unknown as typeof fetch
+    registerFetchMock
       .mockResolvedValueOnce({ // Check if user exists
         ok: true,
         status: 200,
@@ -73,11 +81,27 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
     const setCookie = registerRes.headers.get('Set-Cookie')
     expect(setCookie).toContain('session=')
 
+    expect(registerFetchMock).toHaveBeenCalledTimes(4)
+    expect(registerFetchMock).toHaveBeenNthCalledWith(
+      1,
+      expectedMechUrl,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'X-API-Key': TEST_API_KEY,
+          'X-App-ID': expectedAppSchemaId,
+        }),
+      })
+    )
+
     // 2. Mock Login
     // - Look up user by email
     // - Insert session
     const passwordHash = await hasher.hash(password)
-    global.fetch = vi.fn()
+    const loginFetchMock = vi.fn()
+    global.fetch = loginFetchMock as unknown as typeof fetch
+    loginFetchMock
       .mockResolvedValueOnce({ // Look up user
         ok: true,
         status: 200,
@@ -104,9 +128,23 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
     const loginData = await loginRes.json()
     expect(loginData.sessionId).toBeDefined()
 
+    expect(loginFetchMock).toHaveBeenCalledTimes(2)
+    expect(loginFetchMock).toHaveBeenNthCalledWith(
+      1,
+      expectedMechUrl,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'X-API-Key': TEST_API_KEY,
+          'X-App-ID': expectedAppSchemaId,
+        }),
+      })
+    )
+
     // 3. Mock Session Validation
     // - SELECT with JOIN
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    const sessionFetchMock = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 200,
       json: async () => ({
@@ -115,6 +153,7 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
         rowCount: 1
       })
     })
+    global.fetch = sessionFetchMock as unknown as typeof fetch
 
     const sessionReq = new Request('https://example.com/auth/session', {
       headers: { 'Cookie': `session=${loginData.sessionId}` }
@@ -125,13 +164,28 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
     const sessionData = await sessionRes.json()
     expect(sessionData.user.id).toBe(userId)
 
+    expect(sessionFetchMock).toHaveBeenCalledTimes(1)
+    expect(sessionFetchMock).toHaveBeenNthCalledWith(
+      1,
+      expectedMechUrl,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'X-API-Key': TEST_API_KEY,
+          'X-App-ID': expectedAppSchemaId,
+        }),
+      })
+    )
+
     // 4. Mock Logout
     // - DELETE session
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    const logoutFetchMock = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 200,
       json: async () => ({ success: true, rowCount: 1 })
     })
+    global.fetch = logoutFetchMock as unknown as typeof fetch
 
     const logoutReq = new Request('https://example.com/auth/logout', {
       method: 'POST',
@@ -142,5 +196,19 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
     const logoutRes = await handleClearAuthRequest(logoutReq, config)
     expect(logoutRes.status).toBe(200)
     expect(logoutRes.headers.get('Set-Cookie')).toContain('Max-Age=0')
-  })
+
+    expect(logoutFetchMock).toHaveBeenCalledTimes(1)
+    expect(logoutFetchMock).toHaveBeenNthCalledWith(
+      1,
+      expectedMechUrl,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'X-API-Key': TEST_API_KEY,
+          'X-App-ID': expectedAppSchemaId,
+        }),
+      })
+    )
+  }, 20000)
 })
