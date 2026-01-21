@@ -187,8 +187,9 @@ export async function validateSession(
 
     return result || null
   } catch (error) {
-    // Return null if database query fails (e.g. stale session ID, table missing)
-    // The error is handled gracefully as "unauthenticated"
+    // Log the error but return null to prevent 500 errors for the client
+    // during background session checks. This aids debugging while maintaining resilience.
+    console.error('[ClearAuth] Session validation error:', error)
     return null
   }
 }

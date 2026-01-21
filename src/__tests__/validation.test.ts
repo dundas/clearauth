@@ -39,6 +39,13 @@ describe("validation", () => {
       expect(() => validateUuid("not-a-uuid")).toThrow(ClearAuthConfigError)
       expect(() => validateUuid("550e8400-e29b-41d4-a716")).toThrow(ClearAuthConfigError)
       expect(() => validateUuid("")).toThrow(ClearAuthConfigError)
+      
+      // Mixed delimiters should be rejected
+      const mixedUuid = "550e8400-e29b_41d4-a716_446655440000"
+      expect(() => validateUuid(mixedUuid)).toThrow(ClearAuthConfigError)
+      
+      const mixedPrefixedUuid = "app_550e8400-e29b_41d4-a716_446655440000"
+      expect(() => validateUuid(mixedPrefixedUuid)).toThrow(ClearAuthConfigError)
     })
   })
 
