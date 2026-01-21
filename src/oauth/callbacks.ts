@@ -187,7 +187,6 @@ export async function validateSession(
         'users.id',
         'users.email',
         'users.email_verified',
-        'users.password_hash',
         'users.github_id',
         'users.google_id',
         'users.discord_id',
@@ -208,7 +207,9 @@ export async function validateSession(
   } catch (error) {
     // Log the error using the provided logger to prevent 500 errors for the client
     // during background session checks. This aids debugging while maintaining resilience.
-    logger.error('Session validation error', { error, sessionId })
+    // Redact sessionId to avoid exposing sensitive tokens in logs
+    const redactedSessionId = sessionId ? `${sessionId.slice(0, 8)}...` : 'unknown'
+    logger.error('Session validation error', { error, sessionId: redactedSessionId })
     return null
   }
 }
