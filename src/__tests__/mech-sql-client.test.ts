@@ -83,6 +83,28 @@ describe("MechSqlClient", () => {
       expect(global.fetch).toHaveBeenCalledTimes(1)
     })
 
+    it("should send original appId (with hyphens) in X-App-ID header, not sanitized appSchemaId", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [],
+          rowCount: 0
+        })
+      })
+
+      const client = new MechSqlClient(baseConfig)
+      await client.execute("SELECT 1")
+
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      const headers = fetchCall[1].headers
+      // X-App-ID must be the original UUID with hyphens, NOT the underscored appSchemaId
+      expect(headers["X-App-ID"]).toBe(validUuid)
+      expect(headers["X-App-ID"]).toContain("-")
+      expect(headers["X-App-ID"]).not.toContain("_")
+    })
+
     it("should handle empty result set", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,

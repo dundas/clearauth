@@ -170,7 +170,7 @@ export class MechSqlClient {
         headers: {
           "Content-Type": "application/json",
           "X-API-Key": this.apiKey,
-          "X-App-ID": this.appSchemaId
+          "X-App-ID": this.appId
         },
         body: JSON.stringify({ sql, params }),
         signal: controller.signal
