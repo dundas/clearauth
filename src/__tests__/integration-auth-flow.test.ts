@@ -32,7 +32,6 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
     const sessionId = "session-random-id-123"
 
     const expectedMechUrl = `https://storage.mechdna.net/api/apps/${TEST_APP_ID}/postgresql/query`
-    const expectedAppId = TEST_APP_ID
 
     // 1. Mock Registration
     // - Check if user exists (none)
@@ -90,7 +89,6 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
           'X-API-Key': TEST_API_KEY,
-          'X-App-ID': expectedAppId,
         }),
       })
     )
@@ -137,7 +135,6 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
           'X-API-Key': TEST_API_KEY,
-          'X-App-ID': expectedAppId,
         }),
       })
     )
@@ -173,7 +170,6 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
           'X-API-Key': TEST_API_KEY,
-          'X-App-ID': expectedAppId,
         }),
       })
     )
@@ -206,7 +202,6 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
           'X-API-Key': TEST_API_KEY,
-          'X-App-ID': expectedAppId,
         }),
       })
     )

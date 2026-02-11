@@ -1,6 +1,6 @@
 {
   "name": "clearauth",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "ClearAuth: lightweight authentication library with Arctic OAuth, pluggable password hashing, and Kysely-backed storage",
   "keywords": [
     "clearauth",

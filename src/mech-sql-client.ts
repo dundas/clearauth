@@ -153,7 +153,9 @@ export class MechSqlClient {
   }
 
   private async executeOnce<R = unknown>(sql: string, params: readonly unknown[]): Promise<{ rows: R[]; rowCount: number }> {
-    const url = `${this.baseUrl.replace(/\/$/, "")}/api/apps/${this.appId}/postgresql/query`
+    // Strip "app_" prefix if present — URL path wants the raw UUID only
+    const pathAppId = this.appId.replace(/^app_/, "")
+    const url = `${this.baseUrl.replace(/\/$/, "")}/api/apps/${pathAppId}/postgresql/query`
 
     this.logger.debug("Executing SQL query", {
       url,
@@ -169,8 +171,7 @@ export class MechSqlClient {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": this.apiKey,
-          "X-App-ID": this.appId
+          "X-API-Key": this.apiKey
         },
         body: JSON.stringify({ sql, params }),
         signal: controller.signal

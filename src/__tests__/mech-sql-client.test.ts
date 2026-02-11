@@ -83,7 +83,7 @@ describe("MechSqlClient", () => {
       expect(global.fetch).toHaveBeenCalledTimes(1)
     })
 
-    it("should send original appId (with hyphens) in X-App-ID header, not sanitized appSchemaId", async () => {
+    it("should NOT send X-App-ID header (causes table name rewriting issues)", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -99,10 +99,32 @@ describe("MechSqlClient", () => {
 
       const fetchCall = (global.fetch as any).mock.calls[0]
       const headers = fetchCall[1].headers
-      // X-App-ID must be the original UUID with hyphens, NOT the underscored appSchemaId
-      expect(headers["X-App-ID"]).toBe(validUuid)
-      expect(headers["X-App-ID"]).toContain("-")
-      expect(headers["X-App-ID"]).not.toContain("_")
+      expect(headers["X-App-ID"]).toBeUndefined()
+    })
+
+    it("should strip app_ prefix from appId in URL path", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [],
+          rowCount: 0
+        })
+      })
+
+      const prefixedConfig = {
+        ...baseConfig,
+        appId: `app_${validUuid}`,
+      }
+      const client = new MechSqlClient(prefixedConfig)
+      await client.execute("SELECT 1")
+
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      const url = fetchCall[0] as string
+      // URL should use the raw UUID, not app_UUID
+      expect(url).toContain(`/api/apps/${validUuid}/`)
+      expect(url).not.toContain("app_")
     })
 
     it("should handle empty result set", async () => {
