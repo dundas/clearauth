@@ -17,6 +17,7 @@ export interface TokenPairResult {
   refreshToken: string
   tokenType: 'Bearer'
   expiresIn: number
+  refreshTokenExpiresIn: number
   refreshTokenId: string
 }
 
@@ -50,6 +51,7 @@ export async function issueTokenPair(
     refreshToken,
     tokenType: 'Bearer',
     expiresIn: jwtConfig.accessTokenTTL ?? 900,
+    refreshTokenExpiresIn: refreshTokenTTL,
     refreshTokenId: record.id,
   }
 }

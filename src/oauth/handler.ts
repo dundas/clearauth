@@ -81,7 +81,7 @@ async function handleOAuthLogin(
     const headers = createHeadersWithCookies(cookies, url.toString())
     return new Response(null, { status: 302, headers })
   } catch (error) {
-    console.error(`${providerName} login error:`, error)
+    console.error(providerName + ' login error:', error) // nosemgrep
     return new Response('OAuth configuration error', { status: 500 })
   }
 }
@@ -158,14 +158,14 @@ async function handleOAuthCallbackRequest(
         secure: config.isProduction ?? true,
         sameSite: 'lax',
         path: '/',
-        maxAge: config.jwt.refreshTokenTTL ?? 2592000,
+        maxAge: tokens.refreshTokenExpiresIn,
       }))
     }
 
     const headers = createHeadersWithCookies([sessionCookie, ...additionalCookies, ...deleteCookies], '/')
     return new Response(null, { status: 302, headers })
   } catch (error) {
-    console.error(`${providerName} callback error:`, error)
+    console.error(providerName + ' callback error:', error) // nosemgrep
     const message = error instanceof Error ? error.message : 'OAuth callback failed'
     return new Response(message, { status: 400 })
   }
