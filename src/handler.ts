@@ -110,7 +110,7 @@ export async function handleClearAuthRequest(
             )
           } else {
             // Override body with trusted session user data — ignore any userId/email in the request body
-            const tokenBody = JSON.stringify({ userId: sessionUser.id, email: sessionUser.email })
+            const tokenBody = JSON.stringify({ userId: sessionUser.id, email: sessionUser.email, email_verified: sessionUser.email_verified })
             const authedRequest = new Request(request.url, {
               method: 'POST',
               headers: request.headers,
@@ -180,14 +180,10 @@ export async function handleClearAuthRequest(
  * @param pathname - URL pathname to check
  * @returns True if the path is a JWT route
  */
-function isJwtRoute(normalizedPath: string): boolean {
-  const jwtPatterns = [
-    /^\/auth\/token$/,
-    /^\/auth\/refresh$/,
-    /^\/auth\/revoke$/,
-  ]
+const JWT_ROUTES = new Set(['/auth/token', '/auth/refresh', '/auth/revoke'])
 
-  return jwtPatterns.some(pattern => pattern.test(normalizedPath))
+function isJwtRoute(normalizedPath: string): boolean {
+  return JWT_ROUTES.has(normalizedPath)
 }
 
 /**

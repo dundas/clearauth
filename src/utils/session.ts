@@ -60,8 +60,12 @@ export function parseCookies(cookieHeader: string): Record<string, string> {
 
   const pairs = cookieHeader.split(';')
   for (const pair of pairs) {
-    const [name, value] = pair.trim().split('=')
-    if (name && value) {
+    const trimmed = pair.trim()
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx === -1) continue
+    const name = trimmed.slice(0, eqIdx).trim()
+    const value = trimmed.slice(eqIdx + 1)
+    if (name) {
       cookies[name] = decodeURIComponent(value)
     }
   }

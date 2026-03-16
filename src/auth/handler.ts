@@ -26,55 +26,11 @@ import {
 import { AuthError, isValidReturnTo } from './utils.js'
 import { toPublicUser } from '../database/schema.js'
 import { EmailManager } from '../email/manager.js'
-import { createAccessToken } from '../jwt/signer.js'
-import { createRefreshToken } from '../jwt/refresh-tokens.js'
-import { DEFAULT_REFRESH_TOKEN_TTL } from '../jwt/types.js'
-import type { JwtConfig } from '../jwt/types.js'
+import { issueTokenPair } from '../jwt/issue-token-pair.js'
 import type { Kysely } from 'kysely'
 import type { Database } from '../database/schema.js'
 
 type TokensPayload = { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number; refreshTokenId: string }
-
-/**
- * Issue a JWT token pair (access token + refresh token) for a user.
- *
- * @param db - Kysely database instance
- * @param user - User object with id and email
- * @param jwtConfig - JWT configuration
- * @returns Object containing accessToken, refreshToken, tokenType, expiresIn, and refreshTokenId
- * @internal
- */
-async function issueTokenPair(
-  db: Kysely<Database>,
-  user: { id: string; email: string; email_verified: boolean },
-  jwtConfig: JwtConfig
-): Promise<{
-  accessToken: string
-  refreshToken: string
-  tokenType: 'Bearer'
-  expiresIn: number
-  refreshTokenId: string
-}> {
-  const accessToken = await createAccessToken(
-    { sub: user.id, email: user.email, email_verified: user.email_verified },
-    jwtConfig
-  )
-  const refreshTokenTTL = jwtConfig.refreshTokenTTL ?? DEFAULT_REFRESH_TOKEN_TTL
-  const refreshTokenExpiresAt = new Date(Date.now() + refreshTokenTTL * 1000)
-  const { token: refreshToken, record } = await createRefreshToken(
-    db,
-    user.id,
-    refreshTokenExpiresAt,
-    null
-  )
-  return {
-    accessToken,
-    refreshToken,
-    tokenType: 'Bearer',
-    expiresIn: jwtConfig.accessTokenTTL ?? 900,
-    refreshTokenId: record.id,
-  }
-}
 
 /**
  * Parse JSON request body

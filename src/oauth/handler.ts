@@ -6,9 +6,7 @@
  */
 
 import type { ClearAuthConfig, RequestContext } from '../types.js'
-import { createAccessToken } from '../jwt/signer.js'
-import { createRefreshToken } from '../jwt/refresh-tokens.js'
-import { DEFAULT_REFRESH_TOKEN_TTL } from '../jwt/types.js'
+import { issueTokenPair } from '../jwt/issue-token-pair.js'
 import { generateGitHubAuthUrl, handleGitHubCallback } from './github.js'
 import { generateGoogleAuthUrl, handleGoogleCallback } from './google.js'
 import { generateDiscordAuthUrl, handleDiscordCallback } from './discord.js'
@@ -147,31 +145,20 @@ async function handleOAuthCallbackRequest(
 
     const additionalCookies: string[] = []
     if (config.jwt) {
-      const accessToken = await createAccessToken(
-        { sub: user.id, email: user.email, email_verified: user.email_verified },
-        config.jwt
-      )
-      const refreshTokenTTL = config.jwt.refreshTokenTTL ?? DEFAULT_REFRESH_TOKEN_TTL
-      const refreshTokenExpiresAt = new Date(Date.now() + refreshTokenTTL * 1000)
-      const { token: refreshToken } = await createRefreshToken(
-        config.database,
-        user.id,
-        refreshTokenExpiresAt,
-        null
-      )
-      additionalCookies.push(createCookieHeader('jwt_access_token', accessToken, {
+      const tokens = await issueTokenPair(config.database, user, config.jwt)
+      additionalCookies.push(createCookieHeader('jwt_access_token', tokens.accessToken, {
         httpOnly: true,
         secure: config.isProduction ?? true,
         sameSite: 'lax',
         path: '/',
-        maxAge: config.jwt.accessTokenTTL ?? 900,
+        maxAge: tokens.expiresIn,
       }))
-      additionalCookies.push(createCookieHeader('jwt_refresh_token', refreshToken, {
+      additionalCookies.push(createCookieHeader('jwt_refresh_token', tokens.refreshToken, {
         httpOnly: true,
         secure: config.isProduction ?? true,
         sameSite: 'lax',
         path: '/',
-        maxAge: refreshTokenTTL,
+        maxAge: config.jwt.refreshTokenTTL ?? 2592000,
       }))
     }
 
