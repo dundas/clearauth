@@ -8,6 +8,7 @@ import type { Kysely } from 'kysely'
 import type { Database } from './database/schema.js'
 import type { PasswordHasher } from './password-hasher.js'
 import type { Logger } from './logger.js'
+import type { JwtConfig } from './jwt/types.js'
 
 /**
  * OAuth Provider Configuration
@@ -251,6 +252,14 @@ export interface ClearAuthConfig {
    * Production mode flag
    */
   isProduction?: boolean
+
+  /**
+   * JWT configuration for stateless token issuance
+   *
+   * When provided, login/register responses will include JWT token pairs.
+   * Also enables /auth/token, /auth/refresh, and /auth/revoke routes.
+   */
+  jwt?: JwtConfig
 
   /**
    * Android device authentication configuration
