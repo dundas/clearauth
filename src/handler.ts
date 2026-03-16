@@ -10,6 +10,7 @@
 import { handleOAuthRequest } from './oauth/handler.js'
 import { handleAuthRequest } from './auth/handler.js'
 import { handleDeviceAuthRequest } from './device-auth/handlers.js'
+import { handleTokenRequest, handleRefreshRequest, handleRevokeRequest } from './jwt/handlers.js'
 import type { ClearAuthConfig } from './types.js'
 import { handleCorsPreflightRequest, addCorsHeaders } from './utils/cors.js'
 import { normalizeAuthPath } from './utils/normalize-auth-path.js'
@@ -77,7 +78,27 @@ export async function handleClearAuthRequest(
   let response: Response
 
   // Determine which handler to use based on path
-  if (isDeviceAuthRoute(pathname)) {
+  if (isJwtRoute(pathname)) {
+    if (!config.jwt) {
+      response = new Response(
+        JSON.stringify({ error: 'JWT not configured' }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
+    } else {
+      const normalizedPath = normalizeAuthPath(pathname)
+      if (normalizedPath === '/auth/token') {
+        response = await handleTokenRequest(request, config.database, config.jwt)
+      } else if (normalizedPath === '/auth/refresh') {
+        response = await handleRefreshRequest(request, config.database, config.jwt)
+      } else {
+        // /auth/revoke — no jwtConfig required for revoke
+        response = await handleRevokeRequest(request, config.database)
+      }
+    }
+  } else if (isDeviceAuthRoute(pathname)) {
     // Try device auth handler first (challenge, device registration, etc.)
     const deviceAuthResponse = await handleDeviceAuthRequest(request, config)
     if (deviceAuthResponse) {
@@ -118,6 +139,29 @@ export async function handleClearAuthRequest(
   }
 
   return response
+}
+
+/**
+ * Check if the path is a JWT token management route
+ *
+ * JWT routes include:
+ * - POST `/auth/token` - Exchange credentials for JWT token pair
+ * - POST `/auth/refresh` - Rotate refresh token and get new access token
+ * - POST `/auth/revoke` - Revoke a refresh token
+ *
+ * @param pathname - URL pathname to check
+ * @returns True if the path is a JWT route
+ */
+function isJwtRoute(pathname: string): boolean {
+  const normalizedPath = normalizeAuthPath(pathname)
+
+  const jwtPatterns = [
+    /^\/auth\/token$/,
+    /^\/auth\/refresh$/,
+    /^\/auth\/revoke$/,
+  ]
+
+  return jwtPatterns.some(pattern => pattern.test(normalizedPath))
 }
 
 /**
@@ -254,6 +298,11 @@ export function getSupportedRoutes() {
       { method: 'POST', path: '/auth/device/authenticate', description: 'Authenticate with a registered device (future)' },
       { method: 'GET', path: '/auth/device/list', description: 'List user\'s registered devices (future)' },
       { method: 'POST', path: '/auth/device/revoke', description: 'Revoke a device (future)' },
+    ],
+    jwt: [
+      { method: 'POST', path: '/auth/token', description: 'Exchange credentials for JWT token pair (requires jwt config)' },
+      { method: 'POST', path: '/auth/refresh', description: 'Rotate refresh token and get new access token (requires jwt config)' },
+      { method: 'POST', path: '/auth/revoke', description: 'Revoke a refresh token (requires jwt config)' },
     ],
   }
 }
