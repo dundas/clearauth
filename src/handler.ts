@@ -14,6 +14,7 @@ import { handleTokenRequest, handleRefreshRequest, handleRevokeRequest } from '.
 import type { ClearAuthConfig } from './types.js'
 import { handleCorsPreflightRequest, addCorsHeaders } from './utils/cors.js'
 import { normalizeAuthPath } from './utils/normalize-auth-path.js'
+import { validateSession, parseCookies } from './oauth/callbacks.js'
 
 /**
  * Unified authentication request handler
@@ -74,11 +75,12 @@ export async function handleClearAuthRequest(
 
   const url = new URL(request.url)
   const pathname = url.pathname
+  const normalizedPath = normalizeAuthPath(pathname)
 
   let response: Response
 
   // Determine which handler to use based on path
-  if (isJwtRoute(pathname)) {
+  if (isJwtRoute(normalizedPath)) {
     if (!config.jwt) {
       response = new Response(
         JSON.stringify({ error: 'JWT not configured' }),
@@ -88,17 +90,43 @@ export async function handleClearAuthRequest(
         }
       )
     } else {
-      const normalizedPath = normalizeAuthPath(pathname)
       if (normalizedPath === '/auth/token') {
-        response = await handleTokenRequest(request, config.database, config.jwt)
+        // Require a valid session cookie — tokens may not be issued for arbitrary userIds
+        const cookieHeader = request.headers.get('Cookie') || ''
+        const cookies = parseCookies(cookieHeader)
+        const cookieName = config.session?.cookie?.name ?? 'session'
+        const sessionId = cookies[cookieName]
+        if (!sessionId) {
+          response = new Response(
+            JSON.stringify({ error: 'unauthorized', message: 'Valid session required' }),
+            { status: 401, headers: { 'Content-Type': 'application/json' } }
+          )
+        } else {
+          const sessionUser = await validateSession(config.database, sessionId, config.logger)
+          if (!sessionUser) {
+            response = new Response(
+              JSON.stringify({ error: 'unauthorized', message: 'Invalid or expired session' }),
+              { status: 401, headers: { 'Content-Type': 'application/json' } }
+            )
+          } else {
+            // Override body with trusted session user data — ignore any userId/email in the request body
+            const tokenBody = JSON.stringify({ userId: sessionUser.id, email: sessionUser.email })
+            const authedRequest = new Request(request.url, {
+              method: 'POST',
+              headers: request.headers,
+              body: tokenBody,
+            })
+            response = await handleTokenRequest(authedRequest, config.database, config.jwt)
+          }
+        }
       } else if (normalizedPath === '/auth/refresh') {
         response = await handleRefreshRequest(request, config.database, config.jwt)
       } else {
-        // /auth/revoke — no jwtConfig required for revoke
+        // /auth/revoke — jwtConfig not forwarded to handler, but jwt must be configured
         response = await handleRevokeRequest(request, config.database)
       }
     }
-  } else if (isDeviceAuthRoute(pathname)) {
+  } else if (isDeviceAuthRoute(normalizedPath)) {
     // Try device auth handler first (challenge, device registration, etc.)
     const deviceAuthResponse = await handleDeviceAuthRequest(request, config)
     if (deviceAuthResponse) {
@@ -116,9 +144,9 @@ export async function handleClearAuthRequest(
         }
       )
     }
-  } else if (isOAuthRoute(pathname)) {
+  } else if (isOAuthRoute(normalizedPath)) {
     response = await handleOAuthRequest(request, config)
-  } else if (isAuthRoute(pathname)) {
+  } else if (isAuthRoute(normalizedPath)) {
     response = await handleAuthRequest(request, config)
   } else {
     response = new Response(
@@ -152,9 +180,7 @@ export async function handleClearAuthRequest(
  * @param pathname - URL pathname to check
  * @returns True if the path is a JWT route
  */
-function isJwtRoute(pathname: string): boolean {
-  const normalizedPath = normalizeAuthPath(pathname)
-
+function isJwtRoute(normalizedPath: string): boolean {
   const jwtPatterns = [
     /^\/auth\/token$/,
     /^\/auth\/refresh$/,
@@ -180,9 +206,7 @@ function isJwtRoute(pathname: string): boolean {
  * @param pathname - URL pathname to check
  * @returns True if the path is an OAuth route
  */
-function isOAuthRoute(pathname: string): boolean {
-  const normalizedPath = normalizeAuthPath(pathname)
-
+function isOAuthRoute(normalizedPath: string): boolean {
   // OAuth-specific patterns
   const oauthPatterns = [
     /^\/auth\/oauth\/(github|google)$/,           // /auth/oauth/github, /auth/oauth/google
@@ -207,9 +231,7 @@ function isOAuthRoute(pathname: string): boolean {
  * @param pathname - URL pathname to check
  * @returns True if the path is a device auth route
  */
-function isDeviceAuthRoute(pathname: string): boolean {
-  const normalizedPath = normalizeAuthPath(pathname)
-
+function isDeviceAuthRoute(normalizedPath: string): boolean {
   // Device authentication patterns
   const deviceAuthPatterns = [
     /^\/auth\/challenge$/,
@@ -238,9 +260,7 @@ function isDeviceAuthRoute(pathname: string): boolean {
  * @param pathname - URL pathname to check
  * @returns True if the path is an auth route
  */
-function isAuthRoute(pathname: string): boolean {
-  const normalizedPath = normalizeAuthPath(pathname)
-
+function isAuthRoute(normalizedPath: string): boolean {
   // Email/password auth patterns
   const authPatterns = [
     /^\/auth\/session$/,

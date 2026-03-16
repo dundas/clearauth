@@ -29,6 +29,50 @@ import { EmailManager } from '../email/manager.js'
 import { createAccessToken } from '../jwt/signer.js'
 import { createRefreshToken } from '../jwt/refresh-tokens.js'
 import { DEFAULT_REFRESH_TOKEN_TTL } from '../jwt/types.js'
+import type { JwtConfig } from '../jwt/types.js'
+import type { Kysely } from 'kysely'
+import type { Database } from '../database/schema.js'
+
+/**
+ * Issue a JWT token pair (access token + refresh token) for a user.
+ *
+ * @param db - Kysely database instance
+ * @param user - User object with id and email
+ * @param jwtConfig - JWT configuration
+ * @returns Object containing accessToken, refreshToken, tokenType, expiresIn, and refreshTokenId
+ * @internal
+ */
+async function issueTokenPair(
+  db: Kysely<Database>,
+  user: { id: string; email: string },
+  jwtConfig: JwtConfig
+): Promise<{
+  accessToken: string
+  refreshToken: string
+  tokenType: 'Bearer'
+  expiresIn: number
+  refreshTokenId: string
+}> {
+  const accessToken = await createAccessToken(
+    { sub: user.id, email: user.email },
+    jwtConfig
+  )
+  const refreshTokenTTL = jwtConfig.refreshTokenTTL ?? DEFAULT_REFRESH_TOKEN_TTL
+  const refreshTokenExpiresAt = new Date(Date.now() + refreshTokenTTL * 1000)
+  const { token: refreshToken, record } = await createRefreshToken(
+    db,
+    user.id,
+    refreshTokenExpiresAt,
+    null
+  )
+  return {
+    accessToken,
+    refreshToken,
+    tokenType: 'Bearer',
+    expiresIn: jwtConfig.accessTokenTTL ?? 900,
+    refreshTokenId: record.id,
+  }
+}
 
 /**
  * Parse JSON request body
@@ -206,31 +250,12 @@ async function handleRegister(request: Request, config: ClearAuthConfig): Promis
     maxAge: expiresInSeconds,
   })
 
-  let responseBody: any = publicResult
+  type TokensPayload = { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number; refreshTokenId: string }
+  let responseBody: typeof publicResult & { tokens?: TokensPayload } = publicResult
 
   if (config.jwt) {
-    const accessToken = await createAccessToken(
-      { sub: result.user.id, email: result.user.email },
-      config.jwt
-    )
-    const refreshTokenTTL = config.jwt.refreshTokenTTL ?? DEFAULT_REFRESH_TOKEN_TTL
-    const refreshTokenExpiresAt = new Date(Date.now() + refreshTokenTTL * 1000)
-    const { token: refreshToken, record } = await createRefreshToken(
-      config.database,
-      result.user.id,
-      refreshTokenExpiresAt,
-      null
-    )
-    responseBody = {
-      ...publicResult,
-      tokens: {
-        accessToken,
-        refreshToken,
-        tokenType: 'Bearer' as const,
-        expiresIn: config.jwt.accessTokenTTL ?? 900,
-        refreshTokenId: record.id,
-      },
-    }
+    const tokens = await issueTokenPair(config.database, result.user, config.jwt)
+    responseBody = { ...publicResult, tokens }
   }
 
   return new Response(JSON.stringify(responseBody), {
@@ -367,31 +392,12 @@ async function handleLogin(request: Request, config: ClearAuthConfig): Promise<R
     maxAge: expiresInSeconds,
   })
 
-  let responseBody: any = publicResult
+  type TokensPayload = { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number; refreshTokenId: string }
+  let responseBody: typeof publicResult & { tokens?: TokensPayload } = publicResult
 
   if (config.jwt) {
-    const accessToken = await createAccessToken(
-      { sub: result.user.id, email: result.user.email },
-      config.jwt
-    )
-    const refreshTokenTTL = config.jwt.refreshTokenTTL ?? DEFAULT_REFRESH_TOKEN_TTL
-    const refreshTokenExpiresAt = new Date(Date.now() + refreshTokenTTL * 1000)
-    const { token: refreshToken, record } = await createRefreshToken(
-      config.database,
-      result.user.id,
-      refreshTokenExpiresAt,
-      null
-    )
-    responseBody = {
-      ...publicResult,
-      tokens: {
-        accessToken,
-        refreshToken,
-        tokenType: 'Bearer' as const,
-        expiresIn: config.jwt.accessTokenTTL ?? 900,
-        refreshTokenId: record.id,
-      },
-    }
+    const tokens = await issueTokenPair(config.database, result.user, config.jwt)
+    responseBody = { ...publicResult, tokens }
   }
 
   return new Response(JSON.stringify(responseBody), {

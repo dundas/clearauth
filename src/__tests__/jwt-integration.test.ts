@@ -10,6 +10,7 @@ import { handleClearAuthRequest } from "../handler.js"
 import { createClearAuth } from "../createMechAuth.js"
 import { createPbkdf2PasswordHasher } from "../password-hasher.js"
 import type { JwtConfig } from "../jwt/types.js"
+import * as arcticProviders from "../oauth/arctic-providers.js"
 
 const TEST_APP_ID = "550e8400-e29b-41d4-a716-446655440001"
 const TEST_API_KEY = "test-api-key-jwt"
@@ -319,9 +320,10 @@ describe("JWT Integration: /auth/token, /auth/refresh routes", () => {
     global.fetch = originalFetch
   })
 
-  it("routes POST /auth/token to JWT handler when jwt config is present", async () => {
+  it("routes POST /auth/token to JWT handler when jwt config is present (with valid session cookie)", async () => {
     const userId = "user-uuid-token-route"
     const email = "tokenroute@example.com"
+    const sessionId = "valid-session-token-route"
     const refreshTokenId = "refresh-token-uuid-003"
 
     const config = createClearAuth({
@@ -334,32 +336,53 @@ describe("JWT Integration: /auth/token, /auth/refresh routes", () => {
     const fetchMock = vi.fn()
     global.fetch = fetchMock as unknown as typeof fetch
 
-    fetchMock.mockResolvedValueOnce({
-      // Insert refresh token
-      ok: true,
-      status: 200,
-      json: async () => ({
-        success: true,
-        rows: [
-          {
-            id: refreshTokenId,
-            user_id: userId,
-            token_hash: "hashed",
-            name: null,
-            expires_at: new Date(Date.now() + 2592000 * 1000).toISOString(),
-            revoked_at: null,
-            last_used_at: null,
-            created_at: new Date().toISOString(),
-          },
-        ],
-        rowCount: 1,
-      }),
-    })
+    fetchMock
+      .mockResolvedValueOnce({
+        // validateSession: SELECT users JOIN sessions
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [
+            {
+              id: userId,
+              email,
+              email_verified: true,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          rowCount: 1,
+        }),
+      })
+      .mockResolvedValueOnce({
+        // createRefreshToken INSERT
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [
+            {
+              id: refreshTokenId,
+              user_id: userId,
+              token_hash: "hashed",
+              name: null,
+              expires_at: new Date(Date.now() + 2592000 * 1000).toISOString(),
+              revoked_at: null,
+              last_used_at: null,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          rowCount: 1,
+        }),
+      })
 
     const req = new Request("https://example.com/auth/token", {
       method: "POST",
       body: JSON.stringify({ userId, email }),
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `session=${sessionId}`,
+      },
     })
 
     const res = await handleClearAuthRequest(req, config)
@@ -530,4 +553,418 @@ describe("JWT Integration: /auth/token, /auth/refresh routes", () => {
     const data = await res.json()
     expect(data.error).toBeDefined()
   })
+
+  it("returns 401 when POST /auth/token is called without a session cookie", async () => {
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+    })
+
+    const req = new Request("https://example.com/auth/token", {
+      method: "POST",
+      body: JSON.stringify({ userId: "u1", email: "u@e.com" }),
+      headers: { "Content-Type": "application/json" },
+      // No Cookie header
+    })
+
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(401)
+
+    const data = await res.json()
+    expect(data.error).toBe("unauthorized")
+  })
+
+  it("returns 401 when POST /auth/token has an invalid/expired session cookie", async () => {
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+    })
+
+    const fetchMock = vi.fn()
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    // validateSession returns empty rows → no valid session
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, rows: [], rowCount: 0 }),
+    })
+
+    const req = new Request("https://example.com/auth/token", {
+      method: "POST",
+      body: JSON.stringify({ userId: "u1", email: "u@e.com" }),
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: "session=invalid-or-expired-session-id",
+      },
+    })
+
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(401)
+
+    const data = await res.json()
+    expect(data.error).toBe("unauthorized")
+  })
+
+  it("issues tokens when POST /auth/token has a valid session cookie", async () => {
+    const userId = "user-uuid-session-auth"
+    const email = "sessionauth@example.com"
+    const sessionId = "valid-session-id-abc123"
+    const refreshTokenId = "refresh-token-uuid-session"
+
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+    })
+
+    const fetchMock = vi.fn()
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    fetchMock
+      .mockResolvedValueOnce({
+        // validateSession: SELECT users JOIN sessions WHERE session id valid
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [
+            {
+              id: userId,
+              email,
+              email_verified: true,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          rowCount: 1,
+        }),
+      })
+      .mockResolvedValueOnce({
+        // createRefreshToken INSERT
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [
+            {
+              id: refreshTokenId,
+              user_id: userId,
+              token_hash: "hashed",
+              name: null,
+              expires_at: new Date(Date.now() + 2592000 * 1000).toISOString(),
+              revoked_at: null,
+              last_used_at: null,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          rowCount: 1,
+        }),
+      })
+
+    const req = new Request("https://example.com/auth/token", {
+      method: "POST",
+      // userId/email in body should be IGNORED — server uses session data
+      body: JSON.stringify({ userId: "attacker-id", email: "attacker@evil.com" }),
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `session=${sessionId}`,
+      },
+    })
+
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(200)
+
+    const data = await res.json()
+    expect(data.accessToken).toMatch(/^eyJ/)
+    expect(data.refreshToken).toBeDefined()
+    expect(data.tokenType).toBe("Bearer")
+    expect(data.expiresIn).toBe(900)
+    expect(data.refreshTokenId).toBe(refreshTokenId)
+  }, 15000)
+})
+
+describe("JWT Integration: POST /auth/revoke", () => {
+  const originalFetch = global.fetch
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    global.fetch = originalFetch
+  })
+
+  it("successfully revokes a refresh token", async () => {
+    const refreshTokenId = "revoke-token-uuid-001"
+    const userId = "user-uuid-revoke"
+
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+    })
+
+    const fetchMock = vi.fn()
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    fetchMock
+      .mockResolvedValueOnce({
+        // getRefreshToken: SELECT by token_hash — returns existing token
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [
+            {
+              id: refreshTokenId,
+              user_id: userId,
+              token_hash: "hashed",
+              name: null,
+              expires_at: new Date(Date.now() + 2592000 * 1000).toISOString(),
+              revoked_at: null,
+              last_used_at: null,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          rowCount: 1,
+        }),
+      })
+      .mockResolvedValueOnce({
+        // revokeRefreshToken UPDATE — must return the row with returningAll()
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [
+            {
+              id: refreshTokenId,
+              user_id: userId,
+              token_hash: "hashed",
+              name: null,
+              expires_at: new Date(Date.now() + 2592000 * 1000).toISOString(),
+              revoked_at: new Date().toISOString(),
+              last_used_at: null,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          rowCount: 1,
+        }),
+      })
+
+    const req = new Request("https://example.com/auth/revoke", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken: "some-opaque-refresh-token" }),
+      headers: { "Content-Type": "application/json" },
+    })
+
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(200)
+
+    const data = await res.json()
+    expect(data.success).toBe(true)
+    expect(data.message).toContain("revoked")
+  })
+
+  it("is idempotent — returns 200 even when refresh token is not found", async () => {
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+    })
+
+    const fetchMock = vi.fn()
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    fetchMock.mockResolvedValueOnce({
+      // getRefreshToken: SELECT returns empty — token not found
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, rows: [], rowCount: 0 }),
+    })
+
+    const req = new Request("https://example.com/auth/revoke", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken: "nonexistent-token" }),
+      headers: { "Content-Type": "application/json" },
+    })
+
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(200)
+
+    const data = await res.json()
+    expect(data.success).toBe(true)
+  })
+
+  it("returns 400 when request body is missing refreshToken", async () => {
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+    })
+
+    const req = new Request("https://example.com/auth/revoke", {
+      method: "POST",
+      body: JSON.stringify({}),
+      headers: { "Content-Type": "application/json" },
+    })
+
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(400)
+
+    const data = await res.json()
+    expect(data.error).toBeDefined()
+  })
+})
+
+describe("JWT Integration: OAuth callback with jwt config issues JWT cookies", () => {
+  const originalFetch = global.fetch
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    global.fetch = originalFetch
+  })
+
+  it("sets jwt_access_token and jwt_refresh_token cookies on OAuth callback when jwt is configured", async () => {
+    const userId = "user-uuid-oauth-jwt"
+    const email = "oauthjwt@example.com"
+    const githubId = "gh-12345"
+    const refreshTokenId = "refresh-token-uuid-oauth"
+
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+      oauth: {
+        github: {
+          clientId: "github-client-id",
+          clientSecret: "github-client-secret",
+          redirectUri: "https://example.com/auth/callback/github",
+        },
+      },
+    })
+
+    // Mock Arctic GitHub provider so no real HTTP call to GitHub's token endpoint
+    const mockGitHubProvider = {
+      validateAuthorizationCode: vi.fn().mockResolvedValue({
+        accessToken: () => "github-access-token",
+      }),
+      createAuthorizationURL: vi.fn(),
+    }
+    vi.spyOn(arcticProviders, "createGitHubProvider").mockReturnValue(mockGitHubProvider as any)
+
+    const fetchMock = vi.fn()
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    fetchMock
+      .mockResolvedValueOnce({
+        // GitHub user API (fetchGitHubUserProfile)
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: Number(githubId),
+          login: "testgithubuser",
+          email,
+          name: "Test GitHub User",
+          avatar_url: "https://avatars.githubusercontent.com/u/12345",
+        }),
+      })
+      .mockResolvedValueOnce({
+        // upsertOAuthUser: SELECT by github_id — user not found
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, rows: [], rowCount: 0 }),
+      })
+      .mockResolvedValueOnce({
+        // upsertOAuthUser: SELECT by email — also not found (new user)
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, rows: [], rowCount: 0 }),
+      })
+      .mockResolvedValueOnce({
+        // upsertOAuthUser: INSERT new user
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [
+            {
+              id: userId,
+              email,
+              github_id: githubId,
+              name: "Test GitHub User",
+              avatar_url: "https://avatars.githubusercontent.com/u/12345",
+              email_verified: true,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          rowCount: 1,
+        }),
+      })
+      .mockResolvedValueOnce({
+        // createSession INSERT
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, rowCount: 1 }),
+      })
+      .mockResolvedValueOnce({
+        // createRefreshToken INSERT
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [
+            {
+              id: refreshTokenId,
+              user_id: userId,
+              token_hash: "hashed",
+              name: null,
+              expires_at: new Date(Date.now() + 2592000 * 1000).toISOString(),
+              revoked_at: null,
+              last_used_at: null,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          rowCount: 1,
+        }),
+      })
+
+    // The callback needs a matching state cookie
+    const state = "test-oauth-state-12345"
+    const req = new Request(
+      `https://example.com/auth/callback/github?code=github-code&state=${state}`,
+      {
+        method: "GET",
+        headers: {
+          Cookie: `oauth_state=${state}`,
+        },
+      }
+    )
+
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(302)
+
+    // Collect all Set-Cookie headers
+    const setCookieHeaders: string[] = []
+    res.headers.forEach((value, name) => {
+      if (name.toLowerCase() === "set-cookie") {
+        setCookieHeaders.push(value)
+      }
+    })
+
+    const jwtAccessCookie = setCookieHeaders.find((c) => c.startsWith("jwt_access_token="))
+    const jwtRefreshCookie = setCookieHeaders.find((c) => c.startsWith("jwt_refresh_token="))
+
+    expect(jwtAccessCookie).toBeDefined()
+    expect(jwtRefreshCookie).toBeDefined()
+
+    // Access token should be a JWT
+    const accessTokenValue = jwtAccessCookie!.split("=")[1].split(";")[0]
+    expect(accessTokenValue).toMatch(/^eyJ/)
+  }, 15000)
 })
