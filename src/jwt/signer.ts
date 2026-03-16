@@ -122,7 +122,7 @@ export function validateAlgorithm(algorithm?: string): void {
  * ```
  */
 export async function createAccessToken(
-  payload: Pick<AccessTokenPayload, 'sub' | 'email' | 'deviceId'>,
+  payload: Pick<AccessTokenPayload, 'sub' | 'email' | 'deviceId' | 'email_verified'>,
   config: JwtConfig
 ): Promise<string> {
   // Validate algorithm (security-critical)
@@ -133,11 +133,17 @@ export async function createAccessToken(
 
   // Build JWT with standard claims
   const ttl = config.accessTokenTTL ?? DEFAULT_ACCESS_TOKEN_TTL
-  const jwt = new SignJWT({
+  const jwtClaims: Record<string, unknown> = {
     sub: payload.sub,
     email: payload.email,
-    deviceId: payload.deviceId,
-  })
+  }
+  if (payload.email_verified !== undefined) {
+    jwtClaims.email_verified = payload.email_verified
+  }
+  if (payload.deviceId !== undefined) {
+    jwtClaims.deviceId = payload.deviceId
+  }
+  const jwt = new SignJWT(jwtClaims)
     .setProtectedHeader({ alg: 'ES256' })
     .setIssuedAt()
     .setExpirationTime(`${ttl}s`)
@@ -199,6 +205,7 @@ export async function verifyAccessToken(
   return {
     sub: payload.sub as string,
     email: payload.email as string,
+    email_verified: payload.email_verified as boolean | undefined,
     deviceId: payload.deviceId as string | undefined,
     iat: payload.iat as number,
     exp: payload.exp as number,

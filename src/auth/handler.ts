@@ -26,6 +26,12 @@ import {
 import { AuthError, isValidReturnTo } from './utils.js'
 import { toPublicUser } from '../database/schema.js'
 import { EmailManager } from '../email/manager.js'
+import { issueTokenPair } from '../jwt/issue-token-pair.js'
+import { revokeRefreshTokenByValue } from '../jwt/refresh-tokens.js'
+import type { Kysely } from 'kysely'
+import type { Database } from '../database/schema.js'
+
+type TokensPayload = { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number; refreshTokenId: string }
 
 /**
  * Parse JSON request body
@@ -203,7 +209,14 @@ async function handleRegister(request: Request, config: ClearAuthConfig): Promis
     maxAge: expiresInSeconds,
   })
 
-  return new Response(JSON.stringify(publicResult), {
+  let responseBody: typeof publicResult & { tokens?: TokensPayload } = publicResult
+
+  if (config.jwt) {
+    const tokens = await issueTokenPair(config.database, result.user, config.jwt)
+    responseBody = { ...publicResult, tokens }
+  }
+
+  return new Response(JSON.stringify(responseBody), {
     status: 201,
     headers: {
       'Content-Type': 'application/json',
@@ -337,7 +350,14 @@ async function handleLogin(request: Request, config: ClearAuthConfig): Promise<R
     maxAge: expiresInSeconds,
   })
 
-  return new Response(JSON.stringify(publicResult), {
+  let responseBody: typeof publicResult & { tokens?: TokensPayload } = publicResult
+
+  if (config.jwt) {
+    const tokens = await issueTokenPair(config.database, result.user, config.jwt)
+    responseBody = { ...publicResult, tokens }
+  }
+
+  return new Response(JSON.stringify(responseBody), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
@@ -368,6 +388,10 @@ async function handleLogin(request: Request, config: ClearAuthConfig): Promise<R
 async function handleLogout(request: Request, config: ClearAuthConfig): Promise<Response> {
   let sessionId: string | undefined
   let usedCookieFallback = false
+
+  // Parse cookies once — used for both session ID fallback and JWT token revocation
+  const allCookies = parseCookies(request.headers.get('cookie') || '')
+
   try {
     const body = await request.json()
     sessionId = body?.sessionId
@@ -376,13 +400,9 @@ async function handleLogout(request: Request, config: ClearAuthConfig): Promise<
   }
 
   if (!sessionId) {
-    const cookieHeader = request.headers.get('cookie')
-    if (cookieHeader) {
-      const cookies = parseCookies(cookieHeader)
-      const cookieName = config.session?.cookie?.name || 'session'
-      sessionId = cookies[cookieName]
-      usedCookieFallback = Boolean(sessionId)
-    }
+    const cookieName = config.session?.cookie?.name || 'session'
+    sessionId = allCookies[cookieName]
+    usedCookieFallback = Boolean(sessionId)
   }
 
   if (usedCookieFallback) {
@@ -403,14 +423,18 @@ async function handleLogout(request: Request, config: ClearAuthConfig): Promise<
     await deleteSession(config.database, sessionId)
   }
 
+  // Revoke JWT refresh token from DB if present in cookies (idempotent — no-ops if already revoked)
+  const jwtRefreshTokenValue = allCookies['jwt_refresh_token']
+  if (jwtRefreshTokenValue) {
+    await revokeRefreshTokenByValue(config.database, jwtRefreshTokenValue)
+  }
+
   const deleteSessionCookie = createDeleteCookieHeader(cookieName, { path: cookiePath, domain: cookieDomain })
-  return new Response(JSON.stringify({ success: true }), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Set-Cookie': deleteSessionCookie,
-    },
-  })
+  const responseHeaders = new Headers({ 'Content-Type': 'application/json' })
+  responseHeaders.append('Set-Cookie', deleteSessionCookie)
+  responseHeaders.append('Set-Cookie', createDeleteCookieHeader('jwt_access_token', { path: cookiePath, domain: cookieDomain }))
+  responseHeaders.append('Set-Cookie', createDeleteCookieHeader('jwt_refresh_token', { path: cookiePath, domain: cookieDomain }))
+  return new Response(JSON.stringify({ success: true }), { status: 200, headers: responseHeaders })
 }
 
 /**

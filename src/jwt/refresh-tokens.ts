@@ -310,6 +310,29 @@ export async function revokeRefreshToken(
 }
 
 /**
+ * Revoke a refresh token by its raw value (idempotent logout helper)
+ *
+ * Hashes the token and issues a single UPDATE WHERE token_hash = ? AND revoked_at IS NULL.
+ * No-ops if the token is already revoked or does not exist — safe for logout paths
+ * where the caller does not need to know whether revocation actually occurred.
+ *
+ * @param db - Kysely database instance
+ * @param tokenValue - Raw (unhashed) refresh token value
+ */
+export async function revokeRefreshTokenByValue(
+  db: Kysely<Database>,
+  tokenValue: string
+): Promise<void> {
+  const hash = await hashRefreshToken(tokenValue)
+  await db
+    .updateTable('refresh_tokens')
+    .set({ revoked_at: new Date() })
+    .where('token_hash', '=', hash)
+    .where('revoked_at', 'is', null)
+    .execute()
+}
+
+/**
  * Revoke all refresh tokens for a user
  *
  * Emergency operation for security incidents or "logout from all devices".

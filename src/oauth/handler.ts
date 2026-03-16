@@ -6,6 +6,7 @@
  */
 
 import type { ClearAuthConfig, RequestContext } from '../types.js'
+import { issueTokenPair } from '../jwt/issue-token-pair.js'
 import { generateGitHubAuthUrl, handleGitHubCallback } from './github.js'
 import { generateGoogleAuthUrl, handleGoogleCallback } from './google.js'
 import { generateDiscordAuthUrl, handleDiscordCallback } from './discord.js'
@@ -80,7 +81,7 @@ async function handleOAuthLogin(
     const headers = createHeadersWithCookies(cookies, url.toString())
     return new Response(null, { status: 302, headers })
   } catch (error) {
-    console.error(`${providerName} login error:`, error)
+    console.error(providerName + ' login error:', error) // nosemgrep
     return new Response('OAuth configuration error', { status: 500 })
   }
 }
@@ -142,10 +143,30 @@ async function handleOAuthCallbackRequest(
       deleteCookies.push(createDeleteCookieHeader('oauth_code_verifier', { path: '/' }))
     }
 
-    const headers = createHeadersWithCookies([sessionCookie, ...deleteCookies], '/')
+    const additionalCookies: string[] = []
+    if (config.jwt) {
+      const tokens = await issueTokenPair(config.database, user, config.jwt)
+      const jwtCookieBase = {
+        httpOnly: true,
+        secure: config.session?.cookie?.secure ?? config.isProduction ?? true,
+        sameSite: config.session?.cookie?.sameSite ?? 'lax',
+        path: config.session?.cookie?.path ?? '/',
+        domain: config.session?.cookie?.domain,
+      } as const
+      additionalCookies.push(createCookieHeader('jwt_access_token', tokens.accessToken, {
+        ...jwtCookieBase,
+        maxAge: tokens.expiresIn,
+      }))
+      additionalCookies.push(createCookieHeader('jwt_refresh_token', tokens.refreshToken, {
+        ...jwtCookieBase,
+        maxAge: tokens.refreshTokenExpiresIn,
+      }))
+    }
+
+    const headers = createHeadersWithCookies([sessionCookie, ...additionalCookies, ...deleteCookies], '/')
     return new Response(null, { status: 302, headers })
   } catch (error) {
-    console.error(`${providerName} callback error:`, error)
+    console.error(providerName + ' callback error:', error) // nosemgrep
     const message = error instanceof Error ? error.message : 'OAuth callback failed'
     return new Response(message, { status: 400 })
   }

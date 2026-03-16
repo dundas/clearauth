@@ -109,6 +109,8 @@ export type CreateClearAuthOptions = {
   passwordHasher?: ClearAuthConfig['passwordHasher']
   /** Custom logger instance (optional) */
   logger?: ClearAuthConfig['logger']
+  /** JWT configuration for stateless token issuance (optional) */
+  jwt?: ClearAuthConfig['jwt']
 }
 
 /**
@@ -268,6 +270,7 @@ export function createClearAuth(options: CreateClearAuthOptions): ClearAuthConfi
       },
       passwordHasher: options.passwordHasher ?? createPbkdf2PasswordHasher(),
       logger,
+      jwt: options.jwt,
     }
 
     return config
