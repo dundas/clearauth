@@ -14,6 +14,7 @@ import { handleTokenRequest, handleRefreshRequest, handleRevokeRequest } from '.
 import type { ClearAuthConfig } from './types.js'
 import { handleCorsPreflightRequest, addCorsHeaders } from './utils/cors.js'
 import { normalizeAuthPath } from './utils/normalize-auth-path.js'
+// TODO: extract validateSession + parseCookies to src/utils/session.ts so the main handler doesn't import from the OAuth module
 import { validateSession, parseCookies } from './oauth/callbacks.js'
 
 /**

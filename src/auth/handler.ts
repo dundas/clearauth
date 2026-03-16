@@ -33,6 +33,8 @@ import type { JwtConfig } from '../jwt/types.js'
 import type { Kysely } from 'kysely'
 import type { Database } from '../database/schema.js'
 
+type TokensPayload = { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number; refreshTokenId: string }
+
 /**
  * Issue a JWT token pair (access token + refresh token) for a user.
  *
@@ -250,7 +252,6 @@ async function handleRegister(request: Request, config: ClearAuthConfig): Promis
     maxAge: expiresInSeconds,
   })
 
-  type TokensPayload = { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number; refreshTokenId: string }
   let responseBody: typeof publicResult & { tokens?: TokensPayload } = publicResult
 
   if (config.jwt) {
@@ -392,7 +393,6 @@ async function handleLogin(request: Request, config: ClearAuthConfig): Promise<R
     maxAge: expiresInSeconds,
   })
 
-  type TokensPayload = { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number; refreshTokenId: string }
   let responseBody: typeof publicResult & { tokens?: TokensPayload } = publicResult
 
   if (config.jwt) {
