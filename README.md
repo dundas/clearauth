@@ -249,6 +249,8 @@ ClearAuth now supports stateless JWT Bearer token authentication for API and CLI
 - **ES256 Algorithm** - ECDSA with P-256 curve (edge-optimized, industry standard)
 - **OAuth 2.0 Compliant** - Standard token response format
 - **Edge Compatible** - Works in Cloudflare Workers, Vercel Edge, Node.js
+- **Auto-Issuance** - Tokens returned automatically on login, register, and OAuth callback — no extra round-trip
+- **CF Pages Zero-Round-Trip** - Verify access tokens in CF Pages Functions with no database call
 
 ### Installation
 
@@ -318,58 +320,56 @@ export const authConfig = createClearAuthNode({
 })
 ```
 
-#### 3. Issue Tokens
+#### 3. Tokens Are Issued Automatically
 
-Use the built-in token endpoint to exchange credentials for a JWT pair:
+When `jwt` is configured, `handleClearAuthRequest` automatically issues a JWT token pair alongside the session cookie on every successful **login**, **register**, and **OAuth callback**. No extra call needed.
+
+**Login / Register response** (when `jwt` is configured):
+
+```json
+{
+  "user": {
+    "id": "user-uuid",
+    "email": "user@example.com",
+    "email_verified": true,
+    "name": null,
+    "avatar_url": null,
+    "created_at": "2025-01-01T00:00:00.000Z"
+  },
+  "sessionId": "session_id",
+  "tokens": {
+    "accessToken": "eyJhbGc...",
+    "refreshToken": "rt_...",
+    "tokenType": "Bearer",
+    "expiresIn": 900,
+    "refreshTokenId": "token-uuid"
+  }
+}
+```
+
+**OAuth callback** (when `jwt` is configured): The 302 redirect also sets two additional `httpOnly` cookies alongside the session cookie:
+- `jwt_access_token` — short-lived access token (15 min)
+- `jwt_refresh_token` — long-lived refresh token (30 days)
+
+#### 4. Exchange a Session for Tokens (optional)
+
+If you need tokens after the initial login (e.g. an existing session user visiting a new device), call `POST /auth/token` with the session cookie. The server validates the session and issues a fresh token pair — the request body `userId`/`email` fields are **ignored** (identity comes from the session):
 
 ```ts
-// POST /auth/token
-import { handleTokenRequest } from 'clearauth'
-
-const request = new Request('https://api.example.com/auth/token', {
+// Client already has a session cookie
+const response = await fetch('https://api.example.com/auth/token', {
   method: 'POST',
+  credentials: 'include', // sends session cookie
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    userId: user.id,
-    email: user.email,
-    deviceName: 'iPhone 15 Pro', // optional
-  }),
+  body: JSON.stringify({ deviceName: 'iPhone 15 Pro' }), // optional
 })
 
-const response = await handleTokenRequest(request, db, authConfig.jwt)
-const data = await response.json()
-
-// Response:
-// {
-//   "accessToken": "eyJhbGc...",
-//   "refreshToken": "rt_...",
-//   "tokenType": "Bearer",
-//   "expiresIn": 900,
-//   "refreshTokenId": "token-uuid"
-// }
+const { accessToken, refreshToken, tokenType, expiresIn } = await response.json()
 ```
 
-Or create tokens directly:
+> **Security note**: `POST /auth/token` requires a valid session cookie. Requests without one return `401`. This gate lives in `handleClearAuthRequest` — if you call `handleTokenRequest` directly you must enforce authentication yourself.
 
-```ts
-import { createAccessToken, createRefreshToken } from 'clearauth/jwt'
-
-// Create access token (JWT)
-const accessToken = await createAccessToken(
-  { sub: user.id, email: user.email },
-  authConfig.jwt
-)
-
-// Create refresh token (opaque, stored in DB)
-const { token: refreshToken, record } = await createRefreshToken(
-  db,
-  user.id,
-  new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-  'Mobile App' // optional device name
-)
-```
-
-#### 4. Validate Bearer Tokens
+#### 5. Validate Bearer Tokens
 
 ```ts
 import { validateBearerToken } from 'clearauth/jwt'
@@ -383,10 +383,11 @@ if (!payload) {
 
 console.log('User ID:', payload.sub)
 console.log('Email:', payload.email)
+console.log('Email verified:', payload.email_verified) // gate unverified users here
 console.log('Expires:', new Date(payload.exp * 1000))
 ```
 
-#### 5. Refresh Tokens
+#### 6. Refresh Tokens
 
 ```ts
 import { handleRefreshRequest } from 'clearauth/jwt'
@@ -413,7 +414,7 @@ const data = await response.json()
 // }
 ```
 
-#### 6. Revoke Tokens
+#### 7. Revoke Tokens
 
 ```ts
 import { handleRevokeRequest, revokeAllUserRefreshTokens } from 'clearauth/jwt'
@@ -434,31 +435,139 @@ const count = await revokeAllUserRefreshTokens(db, userId)
 console.log(`Revoked ${count} tokens`)
 ```
 
-### Usage with Cloudflare Workers
+### Cloudflare Pages: Zero-Round-Trip Verification
 
-JWT authentication works seamlessly in Cloudflare Workers:
+The primary JWT use case for ClearAuth is **Cloudflare Pages Functions**: verify access tokens locally (no database call) so every authenticated request is fast and cheap.
+
+#### How it works
+
+1. Your **auth server** (Cloudflare Worker / Node.js) holds the **private key** — issues tokens on login/register/OAuth
+2. Your **CF Pages Functions** hold only the **public key** — verify tokens locally with zero Mech Storage calls
+3. The `email_verified` claim is embedded in the token so you can gate unverified users without a DB round-trip
+
+#### Setup
+
+**Auth server env vars** (both keys required):
+```
+JWT_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...
+JWT_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\n...
+JWT_ISSUER=https://auth.yourapp.com
+JWT_AUDIENCE=https://yourapp.com
+```
+
+**CF Pages env vars** (public key only — never expose the private key):
+```
+CLEARAUTH_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\n...
+CLEARAUTH_ISSUER=https://auth.yourapp.com
+CLEARAUTH_AUDIENCE=https://yourapp.com
+```
+
+#### CF Pages Function
+
+```ts
+// functions/api/[[route]].ts
+import { validateBearerToken } from 'clearauth/jwt'
+
+interface Env {
+  CLEARAUTH_PUBLIC_KEY: string
+  CLEARAUTH_ISSUER: string
+  CLEARAUTH_AUDIENCE: string
+}
+
+export async function onRequest({ request, env }: { request: Request; env: Env }) {
+  // Zero Mech Storage calls — verifies signature locally using public key
+  const payload = await validateBearerToken(request, {
+    publicKey: env.CLEARAUTH_PUBLIC_KEY,
+    issuer: env.CLEARAUTH_ISSUER,
+    audience: env.CLEARAUTH_AUDIENCE,
+  })
+
+  if (!payload) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  // Gate on email verification without a DB call
+  if (!payload.email_verified) {
+    return new Response(JSON.stringify({ error: 'Email not verified' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  // payload.sub    = userId
+  // payload.email  = email address
+  // payload.email_verified = true/false
+  // payload.exp    = expiry (Unix timestamp)
+  return new Response(JSON.stringify({ userId: payload.sub, email: payload.email }), {
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+```
+
+#### Client-side token usage
+
+After login/register, extract tokens from the response and attach them to API requests:
+
+```ts
+// Login
+const res = await fetch('/auth/login', {
+  method: 'POST',
+  credentials: 'include', // keep session cookie too
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, password }),
+})
+
+const { tokens } = await res.json()
+// Store in memory (recommended) or sessionStorage — never localStorage
+let accessToken = tokens.accessToken
+let refreshToken = tokens.refreshToken
+
+// API request
+const data = await fetch('/api/data', {
+  headers: { Authorization: `Bearer ${accessToken}` },
+})
+
+// Token refresh when expired
+async function refreshTokens() {
+  const res = await fetch('/auth/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  })
+  const tokens = await res.json()
+  accessToken = tokens.accessToken
+  refreshToken = tokens.refreshToken // old token is rotated out
+}
+```
+
+> **Security**: Store access tokens in memory (not `localStorage`) to prevent XSS token theft. Session cookies remain `httpOnly` and are unaffected by JWT configuration.
+
+### Usage with Cloudflare Workers (full auth server)
+
+For the auth server itself (issuing tokens, not just verifying):
 
 ```ts
 import { validateBearerToken, createMechKysely } from 'clearauth/edge'
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const db = createMechKysely({ appId: env.MECH_APP_ID, apiKey: env.MECH_API_KEY })
-
     const jwtConfig = {
       privateKey: env.JWT_PRIVATE_KEY,
       publicKey: env.JWT_PUBLIC_KEY,
-      algorithm: 'ES256' as const,
+      issuer: env.JWT_ISSUER,
+      audience: env.JWT_AUDIENCE,
     }
 
-    // Validate Bearer token
+    // Validate Bearer token (zero DB calls)
     const payload = await validateBearerToken(request, jwtConfig)
 
     if (!payload) {
       return new Response('Unauthorized', { status: 401 })
     }
 
-    // User is authenticated
     return new Response(`Hello ${payload.email}`)
   }
 }
@@ -469,18 +578,15 @@ export default {
 For CLI tools or mobile apps, store the refresh token securely and use it to get new access tokens:
 
 ```ts
-// CLI app login flow
-const loginResponse = await fetch('https://api.example.com/auth/token', {
+// CLI app: login returns tokens automatically when jwt is configured
+const loginResponse = await fetch('https://api.example.com/auth/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    userId: user.id,
-    email: user.email,
-    deviceName: 'CLI Tool v1.0',
-  }),
+  body: JSON.stringify({ email: user.email, password: user.password }),
 })
 
-const { accessToken, refreshToken } = await loginResponse.json()
+const { tokens } = await loginResponse.json()
+const { accessToken, refreshToken } = tokens
 
 // Store refresh token securely (OS keychain, encrypted file, etc.)
 await secureStorage.set('refresh_token', refreshToken)
@@ -531,11 +637,26 @@ if (apiResponse.status === 401) {
 | `issuer` | `string` | Optional | JWT issuer claim (iss) |
 | `audience` | `string` | Optional | JWT audience claim (aud) |
 
+#### Access Token Claims
+
+| Claim | Type | Description |
+|-------|------|-------------|
+| `sub` | `string` | User ID |
+| `email` | `string` | User email address |
+| `email_verified` | `boolean` | Whether the user's email is verified — gate on this in CF Pages Functions without a DB call |
+| `iat` | `number` | Issued-at (Unix timestamp) |
+| `exp` | `number` | Expiry (Unix timestamp) |
+| `iss` | `string?` | Issuer (if configured) |
+| `aud` | `string?` | Audience (if configured) |
+| `deviceId` | `string?` | Device identifier (if device-bound) |
+
 #### Token Endpoints
 
-- **`POST /auth/token`** - Exchange credentials for JWT pair
-- **`POST /auth/refresh`** - Rotate refresh token and get new access token
-- **`POST /auth/revoke`** - Revoke a refresh token
+| Method | Path | Auth required | Description |
+|--------|------|---------------|-------------|
+| `POST` | `/auth/token` | Session cookie | Issue a new JWT pair from an existing session |
+| `POST` | `/auth/refresh` | Refresh token | Rotate refresh token, get new access token |
+| `POST` | `/auth/revoke` | Refresh token | Revoke a refresh token |
 
 #### JWT Functions
 
