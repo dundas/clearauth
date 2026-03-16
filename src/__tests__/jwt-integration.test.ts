@@ -977,3 +977,156 @@ describe("JWT Integration: OAuth callback with jwt config issues JWT cookies", (
     expect(accessTokenValue).toMatch(/^eyJ/)
   }, 15000)
 })
+
+describe("JWT Integration: method gating — JWT routes only accept POST", () => {
+  it("returns 405 for GET /auth/token when jwt is configured", async () => {
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+    })
+
+    const req = new Request("https://example.com/auth/token", { method: "GET" })
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(405)
+    expect(res.headers.get("Allow")).toBe("POST")
+  })
+
+  it("returns 405 for PUT /auth/refresh when jwt is configured", async () => {
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+    })
+
+    const req = new Request("https://example.com/auth/refresh", { method: "PUT" })
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(405)
+    expect(res.headers.get("Allow")).toBe("POST")
+  })
+
+  it("returns 405 for DELETE /auth/revoke when jwt is configured", async () => {
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+    })
+
+    const req = new Request("https://example.com/auth/revoke", { method: "DELETE" })
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(405)
+    expect(res.headers.get("Allow")).toBe("POST")
+  })
+})
+
+describe("JWT Integration: POST /auth/logout clears JWT cookies and revokes refresh token", () => {
+  const originalFetch = global.fetch
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    global.fetch = originalFetch
+  })
+
+  it("clears jwt_access_token and jwt_refresh_token cookies on logout", async () => {
+    const sessionId = "logout-session-id"
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+    })
+
+    const fetchMock = vi.fn()
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    // deleteSession call
+    fetchMock.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => ({ success: true, rowCount: 1 }),
+    })
+
+    const req = new Request("https://example.com/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({ sessionId }),
+      headers: { "Content-Type": "application/json" },
+    })
+
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(200)
+
+    const setCookieHeaders: string[] = []
+    res.headers.forEach((value, name) => {
+      if (name.toLowerCase() === "set-cookie") setCookieHeaders.push(value)
+    })
+
+    const hasAccessDelete = setCookieHeaders.some((c) => c.startsWith("jwt_access_token=") && c.includes("Max-Age=0"))
+    const hasRefreshDelete = setCookieHeaders.some((c) => c.startsWith("jwt_refresh_token=") && c.includes("Max-Age=0"))
+    expect(hasAccessDelete).toBe(true)
+    expect(hasRefreshDelete).toBe(true)
+  })
+
+  it("revokes the JWT refresh token DB record when jwt_refresh_token cookie is present", async () => {
+    const sessionId = "logout-session-id-2"
+    const refreshTokenId = "rt-uuid-to-revoke"
+    const fakeRtValue = "some-opaque-refresh-token"
+    const config = createClearAuth({
+      secret: TEST_SECRET,
+      baseUrl: "https://example.com",
+      database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+      jwt: jwtConfig,
+    })
+
+    const fetchMock = vi.fn()
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    // deleteSession
+    fetchMock.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => ({ success: true, rowCount: 1 }),
+    })
+    // getRefreshToken (lookup by token hash)
+    fetchMock.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => ({
+        success: true,
+        rows: [{
+          id: refreshTokenId, user_id: "some-user", token_hash: "hashed",
+          name: null, expires_at: new Date(Date.now() + 9999 * 1000).toISOString(),
+          revoked_at: null, last_used_at: null, created_at: new Date().toISOString(),
+        }],
+        rowCount: 1,
+      }),
+    })
+    // revokeRefreshToken (UPDATE...RETURNING)
+    fetchMock.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => ({
+        success: true,
+        rows: [{
+          id: refreshTokenId, user_id: "some-user", token_hash: "hashed",
+          name: null, expires_at: new Date(Date.now() + 9999 * 1000).toISOString(),
+          revoked_at: new Date().toISOString(), last_used_at: null, created_at: new Date().toISOString(),
+        }],
+        rowCount: 1,
+      }),
+    })
+
+    const req = new Request("https://example.com/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({ sessionId }),
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `jwt_refresh_token=${encodeURIComponent(fakeRtValue)}`,
+      },
+    })
+
+    const res = await handleClearAuthRequest(req, config)
+    expect(res.status).toBe(200)
+
+    // Verify revokeRefreshToken was called (3rd fetch call)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+})

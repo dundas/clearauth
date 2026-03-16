@@ -388,6 +388,10 @@ async function handleLogin(request: Request, config: ClearAuthConfig): Promise<R
 async function handleLogout(request: Request, config: ClearAuthConfig): Promise<Response> {
   let sessionId: string | undefined
   let usedCookieFallback = false
+
+  // Parse cookies once — used for both session ID fallback and JWT token revocation
+  const allCookies = parseCookies(request.headers.get('cookie') || '')
+
   try {
     const body = await request.json()
     sessionId = body?.sessionId
@@ -396,13 +400,9 @@ async function handleLogout(request: Request, config: ClearAuthConfig): Promise<
   }
 
   if (!sessionId) {
-    const cookieHeader = request.headers.get('cookie')
-    if (cookieHeader) {
-      const cookies = parseCookies(cookieHeader)
-      const cookieName = config.session?.cookie?.name || 'session'
-      sessionId = cookies[cookieName]
-      usedCookieFallback = Boolean(sessionId)
-    }
+    const cookieName = config.session?.cookie?.name || 'session'
+    sessionId = allCookies[cookieName]
+    usedCookieFallback = Boolean(sessionId)
   }
 
   if (usedCookieFallback) {
@@ -424,8 +424,6 @@ async function handleLogout(request: Request, config: ClearAuthConfig): Promise<
   }
 
   // Revoke JWT refresh token from DB if present in cookies
-  const cookieHeader = request.headers.get('cookie') || ''
-  const allCookies = parseCookies(cookieHeader)
   const jwtRefreshTokenValue = allCookies['jwt_refresh_token']
   if (jwtRefreshTokenValue) {
     const rtRecord = await getRefreshToken(config.database, jwtRefreshTokenValue)
