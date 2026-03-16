@@ -6,6 +6,9 @@
  */
 
 import type { ClearAuthConfig, RequestContext } from '../types.js'
+import { createAccessToken } from '../jwt/signer.js'
+import { createRefreshToken } from '../jwt/refresh-tokens.js'
+import { DEFAULT_REFRESH_TOKEN_TTL } from '../jwt/types.js'
 import { generateGitHubAuthUrl, handleGitHubCallback } from './github.js'
 import { generateGoogleAuthUrl, handleGoogleCallback } from './google.js'
 import { generateDiscordAuthUrl, handleDiscordCallback } from './discord.js'
@@ -142,7 +145,37 @@ async function handleOAuthCallbackRequest(
       deleteCookies.push(createDeleteCookieHeader('oauth_code_verifier', { path: '/' }))
     }
 
-    const headers = createHeadersWithCookies([sessionCookie, ...deleteCookies], '/')
+    const additionalCookies: string[] = []
+    if (config.jwt) {
+      const accessToken = await createAccessToken(
+        { sub: user.id, email: user.email },
+        config.jwt
+      )
+      const refreshTokenTTL = config.jwt.refreshTokenTTL ?? DEFAULT_REFRESH_TOKEN_TTL
+      const refreshTokenExpiresAt = new Date(Date.now() + refreshTokenTTL * 1000)
+      const { token: refreshToken } = await createRefreshToken(
+        config.database,
+        user.id,
+        refreshTokenExpiresAt,
+        null
+      )
+      additionalCookies.push(createCookieHeader('jwt_access_token', accessToken, {
+        httpOnly: true,
+        secure: config.isProduction ?? true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: config.jwt.accessTokenTTL ?? 900,
+      }))
+      additionalCookies.push(createCookieHeader('jwt_refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: config.isProduction ?? true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: refreshTokenTTL,
+      }))
+    }
+
+    const headers = createHeadersWithCookies([sessionCookie, ...additionalCookies, ...deleteCookies], '/')
     return new Response(null, { status: 302, headers })
   } catch (error) {
     console.error(`${providerName} callback error:`, error)
