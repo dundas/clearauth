@@ -26,6 +26,9 @@ import {
 import { AuthError, isValidReturnTo } from './utils.js'
 import { toPublicUser } from '../database/schema.js'
 import { EmailManager } from '../email/manager.js'
+import { createAccessToken } from '../jwt/signer.js'
+import { createRefreshToken } from '../jwt/refresh-tokens.js'
+import { DEFAULT_REFRESH_TOKEN_TTL } from '../jwt/types.js'
 
 /**
  * Parse JSON request body
@@ -203,7 +206,34 @@ async function handleRegister(request: Request, config: ClearAuthConfig): Promis
     maxAge: expiresInSeconds,
   })
 
-  return new Response(JSON.stringify(publicResult), {
+  let responseBody: any = publicResult
+
+  if (config.jwt) {
+    const accessToken = await createAccessToken(
+      { sub: result.user.id, email: result.user.email },
+      config.jwt
+    )
+    const refreshTokenTTL = config.jwt.refreshTokenTTL ?? DEFAULT_REFRESH_TOKEN_TTL
+    const refreshTokenExpiresAt = new Date(Date.now() + refreshTokenTTL * 1000)
+    const { token: refreshToken, record } = await createRefreshToken(
+      config.database,
+      result.user.id,
+      refreshTokenExpiresAt,
+      null
+    )
+    responseBody = {
+      ...publicResult,
+      tokens: {
+        accessToken,
+        refreshToken,
+        tokenType: 'Bearer' as const,
+        expiresIn: config.jwt.accessTokenTTL ?? 900,
+        refreshTokenId: record.id,
+      },
+    }
+  }
+
+  return new Response(JSON.stringify(responseBody), {
     status: 201,
     headers: {
       'Content-Type': 'application/json',
@@ -337,7 +367,34 @@ async function handleLogin(request: Request, config: ClearAuthConfig): Promise<R
     maxAge: expiresInSeconds,
   })
 
-  return new Response(JSON.stringify(publicResult), {
+  let responseBody: any = publicResult
+
+  if (config.jwt) {
+    const accessToken = await createAccessToken(
+      { sub: result.user.id, email: result.user.email },
+      config.jwt
+    )
+    const refreshTokenTTL = config.jwt.refreshTokenTTL ?? DEFAULT_REFRESH_TOKEN_TTL
+    const refreshTokenExpiresAt = new Date(Date.now() + refreshTokenTTL * 1000)
+    const { token: refreshToken, record } = await createRefreshToken(
+      config.database,
+      result.user.id,
+      refreshTokenExpiresAt,
+      null
+    )
+    responseBody = {
+      ...publicResult,
+      tokens: {
+        accessToken,
+        refreshToken,
+        tokenType: 'Bearer' as const,
+        expiresIn: config.jwt.accessTokenTTL ?? 900,
+        refreshTokenId: record.id,
+      },
+    }
+  }
+
+  return new Response(JSON.stringify(responseBody), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
