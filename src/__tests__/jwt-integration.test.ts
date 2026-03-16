@@ -687,7 +687,9 @@ describe("JWT Integration: /auth/token, /auth/refresh routes", () => {
     expect(data.refreshTokenId).toBe(refreshTokenId)
 
     // Verify the access token sub claim is the SESSION user's id, not the spoofed body id
-    const payload = JSON.parse(atob(data.accessToken.split('.')[1]))
+    // Normalize base64url → base64 before decoding (JWT uses base64url: - → +, _ → /)
+    const b64 = data.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(b64))
     expect(payload.sub).toBe(userId)        // "user-uuid-session-auth"
     expect(payload.sub).not.toBe('attacker-id')
     expect(payload.email).toBe(email)
