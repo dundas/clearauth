@@ -62,6 +62,11 @@ interface TokenRequest {
   email: string
 
   /**
+   * Whether the user's email is verified — forwarded from session user by the routing layer
+   */
+  email_verified?: boolean
+
+  /**
    * Optional device/client name for refresh token
    */
   deviceName?: string
@@ -193,7 +198,7 @@ export async function handleTokenRequest(
 
     // Create access token (JWT)
     const accessToken = await createAccessToken(
-      { sub: body.userId, email: body.email, deviceId: body.deviceId },
+      { sub: body.userId, email: body.email, email_verified: body.email_verified, deviceId: body.deviceId },
       jwtConfig
     )
 
@@ -339,7 +344,7 @@ export async function handleRefreshRequest(
 
     // Create new access token
     const accessToken = await createAccessToken(
-      { sub: user.id, email: user.email },
+      { sub: user.id, email: user.email, email_verified: user.email_verified },
       jwtConfig
     )
 

@@ -146,18 +146,19 @@ async function handleOAuthCallbackRequest(
     const additionalCookies: string[] = []
     if (config.jwt) {
       const tokens = await issueTokenPair(config.database, user, config.jwt)
-      additionalCookies.push(createCookieHeader('jwt_access_token', tokens.accessToken, {
+      const jwtCookieBase = {
         httpOnly: true,
-        secure: config.isProduction ?? true,
-        sameSite: 'lax',
-        path: '/',
+        secure: config.session?.cookie?.secure ?? config.isProduction ?? true,
+        sameSite: config.session?.cookie?.sameSite ?? 'lax',
+        path: config.session?.cookie?.path ?? '/',
+        domain: config.session?.cookie?.domain,
+      } as const
+      additionalCookies.push(createCookieHeader('jwt_access_token', tokens.accessToken, {
+        ...jwtCookieBase,
         maxAge: tokens.expiresIn,
       }))
       additionalCookies.push(createCookieHeader('jwt_refresh_token', tokens.refreshToken, {
-        httpOnly: true,
-        secure: config.isProduction ?? true,
-        sameSite: 'lax',
-        path: '/',
+        ...jwtCookieBase,
         maxAge: tokens.refreshTokenExpiresIn,
       }))
     }

@@ -81,7 +81,12 @@ export async function handleClearAuthRequest(
 
   // Determine which handler to use based on path
   if (isJwtRoute(normalizedPath)) {
-    if (!config.jwt) {
+    if (request.method !== 'POST') {
+      response = new Response(
+        JSON.stringify({ error: 'Method Not Allowed', message: 'JWT routes only accept POST' }),
+        { status: 405, headers: { 'Content-Type': 'application/json', 'Allow': 'POST' } }
+      )
+    } else if (!config.jwt) {
       response = new Response(
         JSON.stringify({ error: 'JWT not configured' }),
         {

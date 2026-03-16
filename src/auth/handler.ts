@@ -27,6 +27,7 @@ import { AuthError, isValidReturnTo } from './utils.js'
 import { toPublicUser } from '../database/schema.js'
 import { EmailManager } from '../email/manager.js'
 import { issueTokenPair } from '../jwt/issue-token-pair.js'
+import { revokeRefreshToken, getRefreshToken } from '../jwt/refresh-tokens.js'
 import type { Kysely } from 'kysely'
 import type { Database } from '../database/schema.js'
 
@@ -422,14 +423,23 @@ async function handleLogout(request: Request, config: ClearAuthConfig): Promise<
     await deleteSession(config.database, sessionId)
   }
 
+  // Revoke JWT refresh token from DB if present in cookies
+  const cookieHeader = request.headers.get('cookie') || ''
+  const allCookies = parseCookies(cookieHeader)
+  const jwtRefreshTokenValue = allCookies['jwt_refresh_token']
+  if (jwtRefreshTokenValue) {
+    const rtRecord = await getRefreshToken(config.database, jwtRefreshTokenValue)
+    if (rtRecord) {
+      await revokeRefreshToken(config.database, rtRecord.id)
+    }
+  }
+
   const deleteSessionCookie = createDeleteCookieHeader(cookieName, { path: cookiePath, domain: cookieDomain })
-  return new Response(JSON.stringify({ success: true }), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Set-Cookie': deleteSessionCookie,
-    },
-  })
+  const responseHeaders = new Headers({ 'Content-Type': 'application/json' })
+  responseHeaders.append('Set-Cookie', deleteSessionCookie)
+  responseHeaders.append('Set-Cookie', createDeleteCookieHeader('jwt_access_token', { path: cookiePath, domain: cookieDomain }))
+  responseHeaders.append('Set-Cookie', createDeleteCookieHeader('jwt_refresh_token', { path: cookiePath, domain: cookieDomain }))
+  return new Response(JSON.stringify({ success: true }), { status: 200, headers: responseHeaders })
 }
 
 /**
