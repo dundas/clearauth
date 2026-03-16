@@ -1087,31 +1087,10 @@ describe("JWT Integration: POST /auth/logout clears JWT cookies and revokes refr
       ok: true, status: 200,
       json: async () => ({ success: true, rowCount: 1 }),
     })
-    // getRefreshToken (lookup by token hash)
+    // revokeRefreshTokenByHash — single UPDATE WHERE token_hash = ? AND revoked_at IS NULL
     fetchMock.mockResolvedValueOnce({
       ok: true, status: 200,
-      json: async () => ({
-        success: true,
-        rows: [{
-          id: refreshTokenId, user_id: "some-user", token_hash: "hashed",
-          name: null, expires_at: new Date(Date.now() + 9999 * 1000).toISOString(),
-          revoked_at: null, last_used_at: null, created_at: new Date().toISOString(),
-        }],
-        rowCount: 1,
-      }),
-    })
-    // revokeRefreshToken (UPDATE...RETURNING)
-    fetchMock.mockResolvedValueOnce({
-      ok: true, status: 200,
-      json: async () => ({
-        success: true,
-        rows: [{
-          id: refreshTokenId, user_id: "some-user", token_hash: "hashed",
-          name: null, expires_at: new Date(Date.now() + 9999 * 1000).toISOString(),
-          revoked_at: new Date().toISOString(), last_used_at: null, created_at: new Date().toISOString(),
-        }],
-        rowCount: 1,
-      }),
+      json: async () => ({ success: true, rowCount: 1 }),
     })
 
     const req = new Request("https://example.com/auth/logout", {
@@ -1126,7 +1105,10 @@ describe("JWT Integration: POST /auth/logout clears JWT cookies and revokes refr
     const res = await handleClearAuthRequest(req, config)
     expect(res.status).toBe(200)
 
-    // Verify revokeRefreshToken was called (3rd fetch call)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    // Verify 2 DB calls were made (deleteSession + revokeRefreshTokenByHash)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    // Second call should be the revocation UPDATE (hits the refresh_tokens table path)
+    const revokeCallUrl = fetchMock.mock.calls[1][0] as string
+    expect(revokeCallUrl).toContain(TEST_APP_ID)
   })
 })

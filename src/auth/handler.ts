@@ -27,7 +27,7 @@ import { AuthError, isValidReturnTo } from './utils.js'
 import { toPublicUser } from '../database/schema.js'
 import { EmailManager } from '../email/manager.js'
 import { issueTokenPair } from '../jwt/issue-token-pair.js'
-import { revokeRefreshToken, getRefreshToken } from '../jwt/refresh-tokens.js'
+import { revokeRefreshTokenByHash } from '../jwt/refresh-tokens.js'
 import type { Kysely } from 'kysely'
 import type { Database } from '../database/schema.js'
 
@@ -423,13 +423,10 @@ async function handleLogout(request: Request, config: ClearAuthConfig): Promise<
     await deleteSession(config.database, sessionId)
   }
 
-  // Revoke JWT refresh token from DB if present in cookies
+  // Revoke JWT refresh token from DB if present in cookies (idempotent — no-ops if already revoked)
   const jwtRefreshTokenValue = allCookies['jwt_refresh_token']
   if (jwtRefreshTokenValue) {
-    const rtRecord = await getRefreshToken(config.database, jwtRefreshTokenValue)
-    if (rtRecord) {
-      await revokeRefreshToken(config.database, rtRecord.id)
-    }
+    await revokeRefreshTokenByHash(config.database, jwtRefreshTokenValue)
   }
 
   const deleteSessionCookie = createDeleteCookieHeader(cookieName, { path: cookiePath, domain: cookieDomain })
