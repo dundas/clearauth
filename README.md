@@ -449,15 +449,15 @@ The primary JWT use case for ClearAuth is **Cloudflare Pages Functions**: verify
 
 **Auth server env vars** (both keys required):
 ```bash
-JWT_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...
-JWT_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\n...
+JWT_PRIVATE_KEY=<your-es256-private-key-pem>
+JWT_PUBLIC_KEY=<your-es256-public-key-pem>
 JWT_ISSUER=https://auth.yourapp.com
 JWT_AUDIENCE=https://yourapp.com
 ```
 
 **CF Pages env vars** (public key only — never expose the private key):
 ```bash
-CLEARAUTH_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\n...
+CLEARAUTH_PUBLIC_KEY=<your-es256-public-key-pem>
 CLEARAUTH_ISSUER=https://auth.yourapp.com
 CLEARAUTH_AUDIENCE=https://yourapp.com
 ```

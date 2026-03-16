@@ -8,7 +8,8 @@
 
 import type { Kysely } from 'kysely'
 import type { Database, User } from '../database/schema.js'
-import { Logger, getDefaultLogger } from '../logger.js'
+import type { Logger } from '../logger.js'
+import { getDefaultLogger } from '../logger.js'
 
 /**
  * Validate session
