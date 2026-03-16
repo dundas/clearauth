@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-03-16
+
+### Added
+
+- **First-Class JWT Support** — Optional ES256 JWT access + refresh token pair auto-issuance (Claude Code, 2026-03-16)
+  - **Context:** PR #28
+  - **Auto-issuance on login/register** — When `jwt` config present, `POST /auth/login` and `POST /auth/register` responses include `tokens { accessToken, refreshToken, tokenType, expiresIn, refreshTokenId }`
+  - **OAuth callback JWT cookies** — OAuth flows set `jwt_access_token` and `jwt_refresh_token` as httpOnly cookies alongside the session cookie; cookies inherit `domain`/`path`/`secure`/`sameSite` from session config
+  - **`POST /auth/token`** — Session-gated endpoint to exchange a valid session cookie for a JWT pair; session identity overrides request body to prevent privilege escalation
+  - **`POST /auth/refresh`** — Rotate refresh token and receive a new access token; `email_verified` is preserved through refresh
+  - **`POST /auth/revoke`** — Revoke a specific refresh token (idempotent)
+  - **JWT logout integration** — `POST /auth/logout` now clears `jwt_access_token` and `jwt_refresh_token` cookies and revokes the DB refresh token record via idempotent `revokeRefreshTokenByValue`
+  - **`email_verified` claim** — Propagated through all token issuance paths including login, register, OAuth, `/auth/token`, and `/auth/refresh`
+  - **CF Pages zero-round-trip pattern** — Public key on edge verifies tokens stateless; private key stays on auth server
+  - **Method gating** — JWT routes return `405 Method Not Allowed` with `Allow: POST` for non-POST requests
+  - **New helper: `revokeRefreshTokenByValue(db, tokenValue)`** — Single idempotent UPDATE by hash, no prior SELECT needed
+  - **New helper: `issueTokenPair(db, user, jwtConfig)`** — Shared token pair issuance helper used by login, register, and OAuth paths
+
+### Security
+
+- **parseCookies hardened** — Now uses `indexOf('=')` instead of `split('=')` to correctly handle base64-padded cookie values; wraps `decodeURIComponent` in try/catch to prevent `URIError` on malformed percent-encoded values (Claude Code, 2026-03-16)
+  - **Context:** PR #28
+
+---
+
 ## [0.6.0] - 2026-01-17
 
 ### Added

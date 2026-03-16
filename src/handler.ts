@@ -348,7 +348,7 @@ export function healthCheck(): Response {
     JSON.stringify({
       status: 'ok',
       service: 'clearauth',
-      version: '0.3.0',
+      version: '0.7.0',
       timestamp: new Date().toISOString(),
     }),
     {
