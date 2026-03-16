@@ -148,7 +148,7 @@ async function handleOAuthCallbackRequest(
     const additionalCookies: string[] = []
     if (config.jwt) {
       const accessToken = await createAccessToken(
-        { sub: user.id, email: user.email },
+        { sub: user.id, email: user.email, email_verified: user.email_verified },
         config.jwt
       )
       const refreshTokenTTL = config.jwt.refreshTokenTTL ?? DEFAULT_REFRESH_TOKEN_TTL

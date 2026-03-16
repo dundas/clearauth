@@ -123,6 +123,14 @@ export interface AccessTokenPayload {
   aud?: string | string[]
 
   /**
+   * Whether the user's email address has been verified
+   *
+   * Included so consumers (e.g. CF Pages Functions) can gate access on email
+   * verification without a round-trip to the database.
+   */
+  email_verified?: boolean
+
+  /**
    * Optional bound device identifier (if the app uses device-bound JWTs)
    */
   deviceId?: string

@@ -137,6 +137,12 @@ interface ErrorResponse {
  * The access token is stateless and expires quickly (default 15 min).
  * The refresh token is stored in the database and can be used to get new access tokens.
  *
+ * **Auth gate**: This function has NO built-in authentication check. It issues a
+ * signed JWT for whatever `userId`/`email` is in the request body. Authentication
+ * is enforced at the routing layer by `handleClearAuthRequest` (session cookie
+ * validation). If you call this function directly — bypassing the unified handler —
+ * you MUST verify the caller's identity yourself before invoking it.
+ *
  * @param request - HTTP request
  * @param db - Kysely database instance
  * @param jwtConfig - JWT configuration
@@ -530,7 +536,7 @@ export function parseBearerToken(request: Request): string | null {
 export async function validateBearerToken(
   request: Request,
   jwtConfig: JwtConfig
-): Promise<{ sub: string; email: string; iat: number; exp: number; deviceId?: string } | null> {
+): Promise<{ sub: string; email: string; email_verified?: boolean; iat: number; exp: number; deviceId?: string } | null> {
   const token = parseBearerToken(request)
   if (!token) {
     return null
@@ -541,6 +547,7 @@ export async function validateBearerToken(
     return {
       sub: payload.sub,
       email: payload.email,
+      email_verified: payload.email_verified,
       iat: payload.iat,
       exp: payload.exp,
       deviceId: payload.deviceId,

@@ -46,7 +46,7 @@ type TokensPayload = { accessToken: string; refreshToken: string; tokenType: 'Be
  */
 async function issueTokenPair(
   db: Kysely<Database>,
-  user: { id: string; email: string },
+  user: { id: string; email: string; email_verified: boolean },
   jwtConfig: JwtConfig
 ): Promise<{
   accessToken: string
@@ -56,7 +56,7 @@ async function issueTokenPair(
   refreshTokenId: string
 }> {
   const accessToken = await createAccessToken(
-    { sub: user.id, email: user.email },
+    { sub: user.id, email: user.email, email_verified: user.email_verified },
     jwtConfig
   )
   const refreshTokenTTL = jwtConfig.refreshTokenTTL ?? DEFAULT_REFRESH_TOKEN_TTL
