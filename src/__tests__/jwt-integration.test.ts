@@ -1087,7 +1087,7 @@ describe("JWT Integration: POST /auth/logout clears JWT cookies and revokes refr
       ok: true, status: 200,
       json: async () => ({ success: true, rowCount: 1 }),
     })
-    // revokeRefreshTokenByHash — single UPDATE WHERE token_hash = ? AND revoked_at IS NULL
+    // revokeRefreshTokenByValue — single UPDATE WHERE token_hash = ? AND revoked_at IS NULL
     fetchMock.mockResolvedValueOnce({
       ok: true, status: 200,
       json: async () => ({ success: true, rowCount: 1 }),
@@ -1105,10 +1105,11 @@ describe("JWT Integration: POST /auth/logout clears JWT cookies and revokes refr
     const res = await handleClearAuthRequest(req, config)
     expect(res.status).toBe(200)
 
-    // Verify 2 DB calls were made (deleteSession + revokeRefreshTokenByHash)
+    // Verify 2 DB calls were made (deleteSession + revokeRefreshTokenByValue)
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    // Second call should be the revocation UPDATE (hits the refresh_tokens table path)
-    const revokeCallUrl = fetchMock.mock.calls[1][0] as string
-    expect(revokeCallUrl).toContain(TEST_APP_ID)
+    // Second call should be the revocation UPDATE against refresh_tokens
+    const revokeCallBody = JSON.parse(fetchMock.mock.calls[1][1]?.body as string ?? '{}')
+    const revokeQuery: string = revokeCallBody.sql ?? ''
+    expect(revokeQuery).toMatch(/refresh_tokens/i)
   })
 })

@@ -319,7 +319,7 @@ export async function revokeRefreshToken(
  * @param db - Kysely database instance
  * @param tokenValue - Raw (unhashed) refresh token value
  */
-export async function revokeRefreshTokenByHash(
+export async function revokeRefreshTokenByValue(
   db: Kysely<Database>,
   tokenValue: string
 ): Promise<void> {

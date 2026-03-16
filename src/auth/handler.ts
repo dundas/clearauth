@@ -27,7 +27,7 @@ import { AuthError, isValidReturnTo } from './utils.js'
 import { toPublicUser } from '../database/schema.js'
 import { EmailManager } from '../email/manager.js'
 import { issueTokenPair } from '../jwt/issue-token-pair.js'
-import { revokeRefreshTokenByHash } from '../jwt/refresh-tokens.js'
+import { revokeRefreshTokenByValue } from '../jwt/refresh-tokens.js'
 import type { Kysely } from 'kysely'
 import type { Database } from '../database/schema.js'
 
@@ -426,7 +426,7 @@ async function handleLogout(request: Request, config: ClearAuthConfig): Promise<
   // Revoke JWT refresh token from DB if present in cookies (idempotent — no-ops if already revoked)
   const jwtRefreshTokenValue = allCookies['jwt_refresh_token']
   if (jwtRefreshTokenValue) {
-    await revokeRefreshTokenByHash(config.database, jwtRefreshTokenValue)
+    await revokeRefreshTokenByValue(config.database, jwtRefreshTokenValue)
   }
 
   const deleteSessionCookie = createDeleteCookieHeader(cookieName, { path: cookiePath, domain: cookieDomain })
