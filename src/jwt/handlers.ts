@@ -230,6 +230,7 @@ export async function handleTokenRequest(
     if (infrastructure) {
       return infrastructure
     }
+    console.error('Unexpected error:', error)
     return new Response(
       JSON.stringify({
         error: 'server_error',
@@ -392,6 +393,7 @@ export async function handleRefreshRequest(
     if (infrastructure) {
       return infrastructure
     }
+    console.error('Unexpected error:', error)
     return new Response(
       JSON.stringify({
         error: 'server_error',
@@ -487,6 +489,7 @@ export async function handleRevokeRequest(
     if (infrastructure) {
       return infrastructure
     }
+    console.error('Unexpected error:', error)
     return new Response(
       JSON.stringify({
         error: 'server_error',
