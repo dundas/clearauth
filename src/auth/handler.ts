@@ -24,6 +24,7 @@ import {
   createCookieHeader,
 } from '../oauth/callbacks.js'
 import { AuthError, isValidReturnTo } from './utils.js'
+import { infrastructureErrorResponse } from '../utils/infrastructure-error-response.js'
 import { toPublicUser } from '../database/schema.js'
 import { EmailManager } from '../email/manager.js'
 import { issueTokenPair } from '../jwt/issue-token-pair.js'
@@ -134,7 +135,16 @@ function errorResponse(error: any): Response {
     )
   }
 
-  // Unknown error
+  const infrastructure = infrastructureErrorResponse(error, 'auth')
+  if (infrastructure) {
+    if (infrastructure.status >= 500) {
+      console.error('Infrastructure error:', error)
+    } else {
+      console.warn('Infrastructure error:', error)
+    }
+    return infrastructure
+  }
+
   console.error('Unexpected error:', error)
   return jsonResponse(
     {

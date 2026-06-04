@@ -19,6 +19,7 @@ import { verifyIntegrityToken } from './android-verifier.js'
 import { listUserDevices, revokeDevice } from './device-registration.js'
 import type { ChallengeResponse, DeviceRegistrationRequest, DeviceRegistrationResponse } from './types.js'
 import { isDevicePlatform, isKeyAlgorithm } from './types.js'
+import { infrastructureErrorResponse } from '../utils/infrastructure-error-response.js'
 
 /**
  * Error response
@@ -427,6 +428,10 @@ export async function handleDeviceRegisterRequest(
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error) {
+    const infrastructure = infrastructureErrorResponse(error, 'oauth')
+    if (infrastructure) {
+      return infrastructure
+    }
     console.error('Device registration failed:', error)
     return new Response(
       JSON.stringify({
@@ -469,6 +474,10 @@ export async function handleChallengeRequest(
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error) {
+    const infrastructure = infrastructureErrorResponse(error, 'oauth')
+    if (infrastructure) {
+      return infrastructure
+    }
     console.error('Challenge generation failed:', error)
     return new Response(
       JSON.stringify({
@@ -534,6 +543,10 @@ export async function handleListDevicesRequest(
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error) {
+    const infrastructure = infrastructureErrorResponse(error, 'oauth')
+    if (infrastructure) {
+      return infrastructure
+    }
     console.error('List devices failed:', error)
     return new Response(
       JSON.stringify({
@@ -605,6 +618,10 @@ export async function handleRevokeDeviceRequest(
       }
     )
   } catch (error) {
+    const infrastructure = infrastructureErrorResponse(error, 'oauth')
+    if (infrastructure) {
+      return infrastructure
+    }
     console.error('Revoke device failed:', error)
     return new Response(
       JSON.stringify({
