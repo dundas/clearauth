@@ -74,4 +74,23 @@ describe("infrastructureErrorResponse", () => {
     expect(body.error).toBe("temporarily_unavailable")
     expect(body.message).toContain("busy")
   })
+
+  it("uses temporarily_unavailable for oauth-format 503 and 504", async () => {
+    for (const err of [
+      new ClearAuthNetworkError("upstream", 503),
+      new ClearAuthTimeoutError("timed out"),
+    ]) {
+      const res = infrastructureErrorResponse(err, "oauth")
+      const body = await res!.json()
+      expect(body.error).toBe("temporarily_unavailable")
+    }
+  })
+
+  it("maps uncommon upstream 5xx to 503", async () => {
+    const res = infrastructureErrorResponse(
+      new ClearAuthNetworkError("upstream", 507),
+      "auth"
+    )
+    expect(res!.status).toBe(503)
+  })
 })

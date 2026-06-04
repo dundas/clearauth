@@ -36,16 +36,10 @@ function mapInfrastructureError(error: unknown): MappedInfrastructureError | nul
 
   if (error instanceof ClearAuthNetworkError) {
     const upstream = error.statusCode
-    if (upstream && PASS_THROUGH_NETWORK_STATUSES.has(upstream)) {
+    if (upstream && upstream >= 500) {
+      const status = PASS_THROUGH_NETWORK_STATUSES.has(upstream) ? upstream : 503
       return {
-        status: upstream,
-        code: "SERVICE_UNAVAILABLE",
-        message: "Service is temporarily unavailable. Please try again.",
-      }
-    }
-    if (upstream === 500) {
-      return {
-        status: 503,
+        status,
         code: "SERVICE_UNAVAILABLE",
         message: "Service is temporarily unavailable. Please try again.",
       }
@@ -98,8 +92,4 @@ export function infrastructureErrorResponse(
     status: mapped.status,
     headers,
   })
-}
-
-export function isInfrastructureClearAuthError(error: unknown): boolean {
-  return mapInfrastructureError(error) !== null
 }
