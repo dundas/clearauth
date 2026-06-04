@@ -58,11 +58,11 @@ function mapInfrastructureError(error: unknown): MappedInfrastructureError | nul
   return null
 }
 
-function oauthErrorField(status: number): string {
-  if (status === 429 || status >= 500) {
-    return "temporarily_unavailable"
+function oauthErrorField(code: string): string {
+  if (code === "INTERNAL_ERROR") {
+    return "server_error"
   }
-  return "server_error"
+  return "temporarily_unavailable"
 }
 
 /**
@@ -86,7 +86,7 @@ export function infrastructureErrorResponse(
   const body =
     format === "auth"
       ? { error: mapped.message, code: mapped.code }
-      : { error: oauthErrorField(mapped.status), message: mapped.message }
+      : { error: oauthErrorField(mapped.code), message: mapped.message }
 
   return new Response(JSON.stringify(body), {
     status: mapped.status,

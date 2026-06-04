@@ -93,4 +93,14 @@ describe("infrastructureErrorResponse", () => {
     )
     expect(res!.status).toBe(503)
   })
+
+  it("uses server_error in oauth format for SQL failures", async () => {
+    const res = infrastructureErrorResponse(
+      new ClearAuthSqlError("relation missing", { code: "42P01" }),
+      "oauth"
+    )
+    const body = await res!.json()
+    expect(body.error).toBe("server_error")
+    expect(res!.status).toBe(500)
+  })
 })
