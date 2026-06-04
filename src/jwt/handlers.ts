@@ -233,7 +233,7 @@ export async function handleTokenRequest(
     return new Response(
       JSON.stringify({
         error: 'server_error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Internal server error',
       } satisfies ErrorResponse),
       {
         status: 500,
@@ -395,7 +395,7 @@ export async function handleRefreshRequest(
     return new Response(
       JSON.stringify({
         error: 'server_error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Internal server error',
       } satisfies ErrorResponse),
       {
         status: 500,
@@ -490,7 +490,7 @@ export async function handleRevokeRequest(
     return new Response(
       JSON.stringify({
         error: 'server_error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Internal server error',
       } satisfies ErrorResponse),
       {
         status: 500,

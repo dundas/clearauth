@@ -1,6 +1,7 @@
 import {
   ClearAuthNetworkError,
   ClearAuthRateLimitError,
+  ClearAuthSqlError,
   ClearAuthTimeoutError,
 } from "../errors.js"
 
@@ -56,6 +57,14 @@ function mapInfrastructureError(error: unknown): MappedInfrastructureError | nul
     return null
   }
 
+  if (error instanceof ClearAuthSqlError) {
+    return {
+      status: 500,
+      code: "INTERNAL_ERROR",
+      message: "Internal server error",
+    }
+  }
+
   return null
 }
 
@@ -72,7 +81,11 @@ export function infrastructureErrorResponse(
     return null
   }
 
-  logInfrastructureError(error, mapped.status)
+  if (mapped.code === "INTERNAL_ERROR") {
+    console.error("Unexpected SQL error:", error)
+  } else {
+    logInfrastructureError(error, mapped.status)
+  }
 
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   if (mapped.retryAfterSeconds !== undefined) {
@@ -82,7 +95,10 @@ export function infrastructureErrorResponse(
   const body =
     format === "auth"
       ? { error: mapped.message, code: mapped.code }
-      : { error: "temporarily_unavailable", message: mapped.message }
+      : {
+          error: mapped.code === "INTERNAL_ERROR" ? "server_error" : "temporarily_unavailable",
+          message: mapped.message,
+        }
 
   return new Response(JSON.stringify(body), {
     status: mapped.status,

@@ -60,10 +60,24 @@ describe("infrastructureErrorResponse", () => {
     expect(res!.status).toBe(503)
   })
 
-  it("returns null for SQL errors (caller handles as unexpected)", () => {
-    expect(
-      infrastructureErrorResponse(new ClearAuthSqlError("relation missing", { code: "42P01" }), "auth")
-    ).toBeNull()
+  it("sanitizes SQL errors to generic 500 without leaking details", async () => {
+    const res = infrastructureErrorResponse(
+      new ClearAuthSqlError("relation missing", { code: "42P01" }),
+      "auth"
+    )
+    expect(res!.status).toBe(500)
+    const body = await res!.json()
+    expect(body).toEqual({ error: "Internal server error", code: "INTERNAL_ERROR" })
+    expect(body.error).not.toContain("relation")
+  })
+
+  it("uses server_error in oauth format for SQL failures", async () => {
+    const res = infrastructureErrorResponse(
+      new ClearAuthSqlError("relation missing", { code: "42P01" }),
+      "oauth"
+    )
+    const body = await res!.json()
+    expect(body.error).toBe("server_error")
   })
 
   it("returns null for unrecognized network errors", () => {
