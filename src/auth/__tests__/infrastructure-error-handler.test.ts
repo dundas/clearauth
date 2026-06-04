@@ -27,9 +27,7 @@ describe("handleAuthRequest infrastructure errors", () => {
   })
 
   it("returns 429 when login hits Mech Storage rate limit", async () => {
-    mockLoginUser.mockRejectedValue(
-      new ClearAuthRateLimitError(30_000, { statusCode: 429 })
-    )
+    mockLoginUser.mockRejectedValue(new ClearAuthRateLimitError(30_000))
 
     const response = await handleAuthRequest(
       new Request("http://localhost:3000/auth/login", {

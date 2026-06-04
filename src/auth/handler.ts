@@ -137,11 +137,6 @@ function errorResponse(error: any): Response {
 
   const infrastructure = infrastructureErrorResponse(error, 'auth')
   if (infrastructure) {
-    if (infrastructure.status >= 500) {
-      console.error('Infrastructure error:', error)
-    } else {
-      console.warn('Infrastructure error:', error)
-    }
     return infrastructure
   }
 

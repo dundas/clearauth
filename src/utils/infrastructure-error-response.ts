@@ -1,7 +1,6 @@
 import {
   ClearAuthNetworkError,
   ClearAuthRateLimitError,
-  ClearAuthSqlError,
   ClearAuthTimeoutError,
 } from "../errors.js"
 
@@ -16,12 +15,21 @@ type MappedInfrastructureError = {
 
 const PASS_THROUGH_NETWORK_STATUSES = new Set([502, 503, 504])
 
+function logInfrastructureError(error: unknown, status: number): void {
+  if (status >= 500) {
+    console.error("Infrastructure error:", error)
+  } else {
+    console.warn("Infrastructure error:", error)
+  }
+}
+
 function mapInfrastructureError(error: unknown): MappedInfrastructureError | null {
   if (error instanceof ClearAuthRateLimitError) {
     return {
       status: 429,
       code: "RATE_LIMITED",
       message: "Service is busy. Please try again later.",
+      // Minimum 1s — Retry-After must be a positive integer (seconds).
       retryAfterSeconds: Math.max(1, Math.ceil(error.retryAfter / 1000)),
     }
   }
@@ -44,25 +52,11 @@ function mapInfrastructureError(error: unknown): MappedInfrastructureError | nul
         message: "Service is temporarily unavailable. Please try again.",
       }
     }
+    // Upstream 4xx or missing statusCode (e.g. connection refused) — caller generic fallback.
     return null
   }
 
-  if (error instanceof ClearAuthSqlError) {
-    return {
-      status: 500,
-      code: "INTERNAL_ERROR",
-      message: "Internal server error",
-    }
-  }
-
   return null
-}
-
-function oauthErrorField(code: string): string {
-  if (code === "INTERNAL_ERROR") {
-    return "server_error"
-  }
-  return "temporarily_unavailable"
 }
 
 /**
@@ -78,6 +72,8 @@ export function infrastructureErrorResponse(
     return null
   }
 
+  logInfrastructureError(error, mapped.status)
+
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   if (mapped.retryAfterSeconds !== undefined) {
     headers["Retry-After"] = String(mapped.retryAfterSeconds)
@@ -86,7 +82,7 @@ export function infrastructureErrorResponse(
   const body =
     format === "auth"
       ? { error: mapped.message, code: mapped.code }
-      : { error: oauthErrorField(mapped.code), message: mapped.message }
+      : { error: "temporarily_unavailable", message: mapped.message }
 
   return new Response(JSON.stringify(body), {
     status: mapped.status,

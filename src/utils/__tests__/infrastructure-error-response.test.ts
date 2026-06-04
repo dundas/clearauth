@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi, afterEach } from "vitest"
 import {
   ClearAuthNetworkError,
   ClearAuthRateLimitError,
@@ -8,11 +8,12 @@ import {
 import { infrastructureErrorResponse } from "../infrastructure-error-response.js"
 
 describe("infrastructureErrorResponse", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it("maps rate limit to 429 with Retry-After (auth format)", async () => {
-    const res = infrastructureErrorResponse(
-      new ClearAuthRateLimitError(45_000, { statusCode: 429 }),
-      "auth"
-    )
+    const res = infrastructureErrorResponse(new ClearAuthRateLimitError(45_000), "auth")
     expect(res).not.toBeNull()
     expect(res!.status).toBe(429)
     expect(res!.headers.get("Retry-After")).toBe("45")
@@ -21,6 +22,17 @@ describe("infrastructureErrorResponse", () => {
       error: "Service is busy. Please try again later.",
       code: "RATE_LIMITED",
     })
+  })
+
+  it("logs rate limits at warn and 5xx at error", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    infrastructureErrorResponse(new ClearAuthRateLimitError(1000), "auth")
+    infrastructureErrorResponse(new ClearAuthNetworkError("upstream", 503), "auth")
+
+    expect(warnSpy).toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalled()
   })
 
   it("maps timeout to 504", async () => {
@@ -48,28 +60,21 @@ describe("infrastructureErrorResponse", () => {
     expect(res!.status).toBe(503)
   })
 
-  it("maps SQL errors to generic 500", async () => {
-    const res = infrastructureErrorResponse(
-      new ClearAuthSqlError("relation missing", { code: "42P01" }),
-      "auth"
-    )
-    expect(res!.status).toBe(500)
-    const body = await res!.json()
-    expect(body).toEqual({ error: "Internal server error", code: "INTERNAL_ERROR" })
-    expect(body.error).not.toContain("relation")
+  it("returns null for SQL errors (caller handles as unexpected)", () => {
+    expect(
+      infrastructureErrorResponse(new ClearAuthSqlError("relation missing", { code: "42P01" }), "auth")
+    ).toBeNull()
   })
 
   it("returns null for unrecognized network errors", () => {
     expect(
       infrastructureErrorResponse(new ClearAuthNetworkError("bad request", 400), "auth")
     ).toBeNull()
+    expect(infrastructureErrorResponse(new ClearAuthNetworkError("refused"), "auth")).toBeNull()
   })
 
   it("uses oauth error field for jwt-style responses", async () => {
-    const res = infrastructureErrorResponse(
-      new ClearAuthRateLimitError(1000),
-      "oauth"
-    )
+    const res = infrastructureErrorResponse(new ClearAuthRateLimitError(1000), "oauth")
     const body = await res!.json()
     expect(body.error).toBe("temporarily_unavailable")
     expect(body.message).toContain("busy")
@@ -92,15 +97,5 @@ describe("infrastructureErrorResponse", () => {
       "auth"
     )
     expect(res!.status).toBe(503)
-  })
-
-  it("uses server_error in oauth format for SQL failures", async () => {
-    const res = infrastructureErrorResponse(
-      new ClearAuthSqlError("relation missing", { code: "42P01" }),
-      "oauth"
-    )
-    const body = await res!.json()
-    expect(body.error).toBe("server_error")
-    expect(res!.status).toBe(500)
   })
 })

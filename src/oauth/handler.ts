@@ -15,6 +15,7 @@ import { generateMicrosoftAuthUrl, handleMicrosoftCallback } from './microsoft.j
 import { generateLinkedInAuthUrl, handleLinkedInCallback } from './linkedin.js'
 import { generateMetaAuthUrl, handleMetaCallback } from './meta.js'
 import { normalizeAuthPath } from '../utils/normalize-auth-path.js'
+import { infrastructureErrorResponse } from '../utils/infrastructure-error-response.js'
 import {
   upsertOAuthUser,
   createSession,
@@ -81,6 +82,10 @@ async function handleOAuthLogin(
     const headers = createHeadersWithCookies(cookies, url.toString())
     return new Response(null, { status: 302, headers })
   } catch (error) {
+    const infrastructure = infrastructureErrorResponse(error, 'oauth')
+    if (infrastructure) {
+      return infrastructure
+    }
     console.error(providerName + ' login error:', error) // nosemgrep
     return new Response('OAuth configuration error', { status: 500 })
   }
@@ -166,6 +171,10 @@ async function handleOAuthCallbackRequest(
     const headers = createHeadersWithCookies([sessionCookie, ...additionalCookies, ...deleteCookies], '/')
     return new Response(null, { status: 302, headers })
   } catch (error) {
+    const infrastructure = infrastructureErrorResponse(error, 'oauth')
+    if (infrastructure) {
+      return infrastructure
+    }
     console.error(providerName + ' callback error:', error) // nosemgrep
     const message = error instanceof Error ? error.message : 'OAuth callback failed'
     return new Response(message, { status: 400 })
