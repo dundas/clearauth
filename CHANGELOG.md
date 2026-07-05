@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-07-05
+
+### Fixed
+
+- **`createClearAuth` now preserves `emailPassword` + `email` config** (Claude Code, 2026-07-05)
+  - **Context:** PR #32
+  - `createClearAuth()` silently dropped `emailPassword` and `email` when assembling the returned config (and didn't declare them on `CreateClearAuthOptions`). Because both are optional on `ClearAuthConfig`, `tsc` never flagged the omission. The register/resend/reset/magic-link handlers gate on `config.emailPassword?.requireEmailVerification` and call `config.email?.send*`, so with those fields dropped **no verification / reset / magic-link email was ever sent**, regardless of caller config. Root-caused from a live signup outage (users stuck on a "check your email" wall). `createClearAuthNode` is covered by the same fix (it spreads `...options` into `createClearAuth`).
+
 ## [0.7.0] - 2026-03-16
 
 ### Added
