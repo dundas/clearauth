@@ -111,6 +111,13 @@ export type CreateClearAuthOptions = {
   logger?: ClearAuthConfig['logger']
   /** JWT configuration for stateless token issuance (optional) */
   jwt?: ClearAuthConfig['jwt']
+  /**
+   * Email/password behavior, e.g. `requireEmailVerification` (optional).
+   * Required for the register handler to gate + trigger verification emails.
+   */
+  emailPassword?: ClearAuthConfig['emailPassword']
+  /** Transactional email callbacks (verification, reset, magic link) (optional). */
+  email?: ClearAuthConfig['email']
 }
 
 /**
@@ -271,6 +278,13 @@ export function createClearAuth(options: CreateClearAuthOptions): ClearAuthConfi
       passwordHasher: options.passwordHasher ?? createPbkdf2PasswordHasher(),
       logger,
       jwt: options.jwt,
+      // Preserve email-verification behavior + callbacks. Both are declared on
+      // ClearAuthConfig and read by the register/resend/reset handlers
+      // (config.emailPassword?.requireEmailVerification, config.email?.send*),
+      // but were previously dropped here — so verification/reset emails were
+      // never sent no matter how the caller configured them.
+      emailPassword: options.emailPassword,
+      email: options.email,
     }
 
     return config
