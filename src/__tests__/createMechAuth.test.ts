@@ -85,6 +85,33 @@ describe("createClearAuth API", () => {
       expect(config.baseUrl).toBe('https://example.com')
     })
 
+    it("preserves emailPassword + email config (register/reset handlers depend on these)", async () => {
+      const sendVerificationEmail = async () => {}
+      const config = createClearAuth({
+        secret: 'test-secret',
+        database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+        baseUrl: 'https://example.com',
+        emailPassword: { enabled: true, requireEmailVerification: true },
+        email: { sendVerificationEmail },
+      })
+
+      // These fields were previously dropped by createClearAuth, so the register
+      // handler's `config.emailPassword?.requireEmailVerification` was always
+      // undefined and verification emails were never sent.
+      expect(config.emailPassword).toEqual({ enabled: true, requireEmailVerification: true })
+      expect(config.email?.sendVerificationEmail).toBe(sendVerificationEmail)
+    })
+
+    it("leaves emailPassword + email undefined when not provided", () => {
+      const config = createClearAuth({
+        secret: 'test-secret',
+        database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+        baseUrl: 'https://example.com',
+      })
+      expect(config.emailPassword).toBeUndefined()
+      expect(config.email).toBeUndefined()
+    })
+
     it("should create config with simplified database format", () => {
       const config = createClearAuth({
         secret: 'test-secret',
