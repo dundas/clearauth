@@ -40,7 +40,7 @@ The authoritative [AT Protocol OAuth specification](https://atproto.com/specs/oa
 ClearAuth owns:
 
 - An `OAuthTransaction` model with a random identifier, provider key, state hash, PKCE material, issuer and redirect bindings, opaque adapter metadata, browser binding, expiry, and consumed timestamp.
-- An `OAuthTransactionStore` with create, load, and atomic consume operations. Consumption must be single-use.
+- An `OAuthTransactionStore` with create and atomic validate-and-consume operations. Consumption must be single-use; callback code has no separate read operation.
 - One opaque browser-binding cookie per transaction, named with both the provider key and transaction ID. Its value is an independent high-entropy random secret whose hash is stored in the transaction. The callback derives the expected cookie name from the state-bound transaction reference, verifies the secret, atomically consumes the server-side transaction, and deletes only that transaction's cookie. IP addresses and User-Agent strings are audit context, not authentication factors. No flow reads or overwrites a shared OAuth cookie.
 - Callback validation before adapter token exchange, including state, provider, expiry, redirect URI, expected issuer, browser binding, and one-time consumption.
 - An `OAuthAdapter` contract that starts a flow and exchanges a validated callback for a normalized external identity and optional upstream credentials.

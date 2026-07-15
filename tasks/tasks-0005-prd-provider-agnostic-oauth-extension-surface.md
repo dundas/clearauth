@@ -58,4 +58,4 @@
 - [ ] Multi-tab and double-callback security tests pass.
 - [ ] Conventional-provider regression suite passes in every phase.
 - [ ] Public extension interfaces and security invariants are documented before implementation merges.
-- [ ] Security audit, adversarial review, pre-push review, smoke decision, and PR review loop complete per the portfolio `STANDARD_DEV_WORKFLOW` supplied by the agent operating environment.
+- [ ] Complete these gates in order: security audit, adversarial review, pre-push review, smoke decision, and PR review loop.
