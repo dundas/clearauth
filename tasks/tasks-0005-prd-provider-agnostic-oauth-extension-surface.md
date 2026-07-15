@@ -8,7 +8,7 @@
 
 - [ ] Define `OAuthTransaction`, binding, and store interfaces.
 - [ ] Add a database-backed store with atomic single-use consumption and expiry cleanup.
-- [ ] Replace global OAuth cookies with one provider-and-transaction-namespaced opaque pointer cookie per flow; consume and delete only the callback's matching cookie.
+- [ ] Replace global OAuth cookies with one provider-and-transaction-namespaced random browser-binding cookie per flow; consume and delete only the callback's matching cookie.
 - [ ] Add compatibility adapters for all current providers.
 - [ ] Test same-provider and cross-provider multi-tab flows, expiry, mismatch, replay, and double callback.
 
@@ -58,4 +58,4 @@
 - [ ] Multi-tab and double-callback security tests pass.
 - [ ] Conventional-provider regression suite passes in every phase.
 - [ ] Public extension interfaces and security invariants are documented before implementation merges.
-- [ ] Security audit, adversarial review, pre-push review, smoke decision, and PR review loop complete per `STANDARD_DEV_WORKFLOW.md`.
+- [ ] Security audit, adversarial review, pre-push review, smoke decision, and PR review loop complete per `.ai/protocols/STANDARD_DEV_WORKFLOW.md`.

@@ -5,6 +5,9 @@
 **Source**: Ohok work order `msg-1784149461545-e23oby`
 **Status**: Proposed
 **Priority**: High
+**Task list**: `tasks/tasks-0005-prd-provider-agnostic-oauth-extension-surface.md`
+
+This PRD intentionally uses a decision-record structure because its primary deliverable is an architecture boundary and extension contract, not a single end-user feature.
 
 ## 1. Decision
 
@@ -38,7 +41,7 @@ ClearAuth owns:
 
 - An `OAuthTransaction` model with a random identifier, provider key, state hash, PKCE material, issuer and redirect bindings, opaque adapter metadata, browser binding, expiry, and consumed timestamp.
 - An `OAuthTransactionStore` with create, load, and atomic consume operations. Consumption must be single-use.
-- One opaque pointer cookie per transaction, named with both the provider key and transaction ID. The callback derives the expected cookie name from the state-bound transaction reference, atomically consumes the server-side transaction, and deletes only that transaction's cookie. No flow reads or overwrites a shared OAuth cookie.
+- One opaque browser-binding cookie per transaction, named with both the provider key and transaction ID. Its value is an independent high-entropy random secret whose hash is stored in the transaction. The callback derives the expected cookie name from the state-bound transaction reference, verifies the secret, atomically consumes the server-side transaction, and deletes only that transaction's cookie. IP addresses and User-Agent strings are audit context, not authentication factors. No flow reads or overwrites a shared OAuth cookie.
 - Callback validation before adapter token exchange, including state, provider, expiry, redirect URI, expected issuer, browser binding, and one-time consumption.
 - An `OAuthAdapter` contract that starts a flow and exchanges a validated callback for a normalized external identity and optional upstream credentials.
 - A generic `oauth_accounts` identity model instead of adding provider columns for each new adapter.
@@ -61,6 +64,13 @@ The names are illustrative; the behavioral contract is normative.
 ```ts
 type OAuthAccountOutcome = 'created' | 'linked' | 'returning'
 
+interface OAuthTransactionBinding {
+  providerKey: string
+  redirectUri: string
+  expectedIssuer?: string
+  browserBindingSecret: string
+}
+
 interface OAuthTransactionStore {
   create(transaction: NewOAuthTransaction): Promise<OAuthTransaction>
   get(id: string): Promise<OAuthTransaction | null>
@@ -80,6 +90,8 @@ interface OAuthAdapterResult {
   credentials?: OAuthUpstreamCredentials
 }
 ```
+
+After adapter callback success, ClearAuth resolves the generic OAuth account and outcome, then runs the existing session-cookie pipeline and optional `issueTokenPair()` JWT pipeline. Adapters do not issue ClearAuth sessions or JWTs directly.
 
 Secrets, raw authorization codes, access tokens, refresh tokens, PKCE verifiers, and private DPoP keys must never be returned in public HTTP responses or callback hooks intended for browser clients.
 
@@ -122,6 +134,8 @@ Secrets, raw authorization codes, access tokens, refresh tokens, PKCE verifiers,
 
 Each phase should be a separate reviewed PR. Migration of existing provider columns must be additive first; destructive cleanup requires a later major release.
 
+Phase 1 intentionally does not accept the legacy shared OAuth cookies on the transaction path. A conventional OAuth flow started before deployment may fail closed at callback and require the user to retry; accepting an unbound legacy cookie would preserve the collision weakness the phase removes. Release notes and deployment runbooks must call out this bounded transition.
+
 ## 9. Acceptance Criteria for Ohok
 
 Ohok can implement AT Protocol OAuth without forking ClearAuth when it can:
@@ -133,3 +147,19 @@ Ohok can implement AT Protocol OAuth without forking ClearAuth when it can:
 5. Revoke or disconnect the upstream account without bypassing ClearAuth's security model.
 
 Until phases 1 through 3 and the applicable DPoP/PAR hooks are shipped, ClearAuth is an explicit no-fit for Ohok's production AT Protocol OAuth flow.
+
+## 10. Gap Matrix
+
+| Gap | Short description |
+|---|---|
+| G1 | No AT Protocol provider or external adapter surface |
+| G2 | State is not bound to a complete authorization transaction |
+| G3 | Global state and PKCE cookies collide across parallel flows |
+| G4 | No client-metadata generation or publication support |
+| G5 | No per-session DPoP key and nonce lifecycle |
+| G6 | No PAR support |
+| G7 | No handle/DID/PDS/authorization-server discovery path |
+| G8 | No SSRF-safe remote discovery policy surface |
+| G9 | No serialized upstream refresh lifecycle |
+| G10 | Upstream revocation and disconnect are only partially supported |
+| G11 | No `created | linked | returning` callback outcome |
