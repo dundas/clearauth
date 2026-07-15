@@ -64,17 +64,18 @@ The names are illustrative; the behavioral contract is normative.
 ```ts
 type OAuthAccountOutcome = 'created' | 'linked' | 'returning'
 
-interface OAuthTransactionBinding {
+interface OAuthCallbackEvidence {
+  returnedState: string
   providerKey: string
   redirectUri: string
-  expectedIssuer?: string
+  returnedIssuer?: string
   browserBindingSecret: string
+  now: Date
 }
 
 interface OAuthTransactionStore {
   create(transaction: NewOAuthTransaction): Promise<OAuthTransaction>
-  get(id: string): Promise<OAuthTransaction | null>
-  consume(id: string, expected: OAuthTransactionBinding): Promise<OAuthTransaction | null>
+  validateAndConsume(id: string, evidence: OAuthCallbackEvidence): Promise<OAuthTransaction | null>
 }
 
 interface OAuthAdapter {
@@ -90,6 +91,8 @@ interface OAuthAdapterResult {
   credentials?: OAuthUpstreamCredentials
 }
 ```
+
+`validateAndConsume()` is one atomic operation. It compares the stored state hash, provider, redirect URI, expected issuer, browser-binding hash, and expiry against the callback evidence, verifies `consumedAt` is unset, and marks the transaction consumed only if every invariant passes. Callback code must not implement this as `get() -> validate -> consume()`.
 
 After adapter callback success, ClearAuth resolves the generic OAuth account and outcome, then runs the existing session-cookie pipeline and optional `issueTokenPair()` JWT pipeline. Adapters do not issue ClearAuth sessions or JWTs directly.
 
