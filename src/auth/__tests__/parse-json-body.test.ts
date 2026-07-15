@@ -70,6 +70,27 @@ describe('parseJsonBody - Cloudflare Pages Functions Compatibility', () => {
   }
 
   describe('Valid JSON bodies', () => {
+    it('fails before registration when required verification has no delivery mechanism', async () => {
+      const database = createMockDb()
+      const invalidConfig: ClearAuthConfig = {
+        ...config,
+        database,
+        emailPassword: { enabled: true, requireEmailVerification: true },
+      }
+      const request = new Request('http://localhost:3000/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'test@example.com', password: 'Password123!' }),
+      })
+
+      const response = await handleAuthRequest(request, invalidConfig)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data).toEqual({ error: 'Internal server error', code: 'INTERNAL_ERROR' })
+      expect(database.selectFrom).not.toHaveBeenCalled()
+    })
+
     it('should parse valid JSON body successfully', async () => {
       const request = new Request('http://localhost:3000/auth/request-reset', {
         method: 'POST',

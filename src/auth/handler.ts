@@ -25,7 +25,7 @@ import {
 } from '../oauth/callbacks.js'
 import { AuthError, isValidReturnTo } from './utils.js'
 import { toPublicUser } from '../database/schema.js'
-import { EmailManager } from '../email/manager.js'
+import { EmailManager, hasVerificationEmailDelivery } from '../email/manager.js'
 import { issueTokenPair } from '../jwt/issue-token-pair.js'
 import { revokeRefreshTokenByValue } from '../jwt/refresh-tokens.js'
 import type { Kysely } from 'kysely'
@@ -174,6 +174,15 @@ function errorResponse(error: any): Response {
  * ```
  */
 async function handleRegister(request: Request, config: ClearAuthConfig): Promise<Response> {
+  if (
+    config.emailPassword?.requireEmailVerification &&
+    !hasVerificationEmailDelivery(config)
+  ) {
+    throw new Error(
+      '[ClearAuth] requireEmailVerification requires email.sendVerificationEmail or email.provider'
+    )
+  }
+
   const body = await parseJsonBody(request)
   const { email, password } = body
 

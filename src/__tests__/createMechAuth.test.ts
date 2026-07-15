@@ -102,6 +102,17 @@ describe("createClearAuth API", () => {
       expect(config.email?.sendVerificationEmail).toBe(sendVerificationEmail)
     })
 
+    it("rejects required email verification without a delivery mechanism", () => {
+      expect(() =>
+        createClearAuth({
+          secret: 'test-secret',
+          database: { appId: TEST_APP_ID, apiKey: TEST_API_KEY },
+          baseUrl: 'https://example.com',
+          emailPassword: { enabled: true, requireEmailVerification: true },
+        })
+      ).toThrow('requireEmailVerification requires email.sendVerificationEmail or email.provider')
+    })
+
     it("leaves emailPassword + email undefined when not provided", () => {
       const config = createClearAuth({
         secret: 'test-secret',
