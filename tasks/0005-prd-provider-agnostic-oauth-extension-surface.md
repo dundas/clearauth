@@ -4,6 +4,7 @@
 **Feature**: OAuth Transactions and External Adapters
 **Source**: Ohok work order `msg-1784149461545-e23oby`
 **Status**: Proposed
+**Created**: 2026-07-15
 **Priority**: High
 **Task list**: `tasks/tasks-0005-prd-provider-agnostic-oauth-extension-surface.md`
 
@@ -69,6 +70,7 @@ interface OAuthCallbackEvidence {
   providerKey: string
   redirectUri: string
   returnedIssuer?: string
+  /** Raw per-flow cookie value. Never persist or log this value. */
   browserBindingSecret: string
   now: Date
 }
@@ -90,9 +92,18 @@ interface OAuthAdapterResult {
   profile: { name?: string | null; avatarUrl?: string | null }
   credentials?: OAuthUpstreamCredentials
 }
+
+interface OAuthUpstreamCredentials {
+  accessToken?: string
+  refreshToken?: string
+  expiresAt?: Date
+  scope?: string
+}
 ```
 
 `validateAndConsume()` is one atomic operation. It compares the stored state hash, provider, redirect URI, expected issuer, browser-binding hash, and expiry against the callback evidence, verifies `consumedAt` is unset, and marks the transaction consumed only if every invariant passes. Callback code must not implement this as `get() -> validate -> consume()`.
+
+`OAuthUpstreamCredentials` is adapter-to-library server-side data only. The credential sink encrypts it before persistence; no raw credential, browser-binding secret, or private DPoP key may be logged or exposed through a browser-facing API.
 
 After adapter callback success, ClearAuth resolves the generic OAuth account and outcome, then runs the existing session-cookie pipeline and optional `issueTokenPair()` JWT pipeline. Adapters do not issue ClearAuth sessions or JWTs directly.
 
@@ -128,14 +139,16 @@ Secrets, raw authorization codes, access tokens, refresh tokens, PKCE verifiers,
 
 ## 8. Delivery Strategy
 
-1. Transaction core and compatibility bridge for current providers.
-2. Callback outcomes and generic OAuth account storage.
-3. External adapter registration and routing through the existing success pipeline.
-4. Optional discovery, DPoP, and PAR hooks.
-5. Upstream credential sink, refresh lock, disconnect, and revocation semantics.
-6. AT Protocol reference adapter maintained by Ohok or a separate integration package.
+1. Transaction core and compatibility bridge for current providers. Owner: ClearAuth.
+2. Callback outcomes and generic OAuth account storage. Owner: ClearAuth.
+3. External adapter registration and routing through the existing success pipeline. Owner: ClearAuth.
+4. Optional discovery, DPoP, and PAR hooks. Owner: ClearAuth.
+5. Upstream credential sink, refresh lock, disconnect, and revocation semantics. Owner: ClearAuth.
+6. AT Protocol reference adapter maintained by Ohok or a separate integration package. Owner: Ohok.
 
 Each phase should be a separate reviewed PR. Migration of existing provider columns must be additive first; destructive cleanup requires a later major release.
+
+During the Phase 2 deprecation window, retain `upsertOAuthUser()` as a compatibility wrapper returning `Promise<User>` for existing callers. Introduce the outcome-aware account-resolution API alongside it; do not change the exported legacy function's return contract in place.
 
 Phase 1 intentionally does not accept the legacy shared OAuth cookies on the transaction path. A conventional OAuth flow started before deployment may fail closed at callback and require the user to retry; accepting an unbound legacy cookie would preserve the collision weakness the phase removes. Release notes and deployment runbooks must call out this bounded transition.
 
@@ -165,4 +178,4 @@ Until phases 1 through 3 and the applicable DPoP/PAR hooks are shipped, ClearAut
 | G8 | No SSRF-safe remote discovery policy surface |
 | G9 | No serialized upstream refresh lifecycle |
 | G10 | Upstream revocation and disconnect are only partially supported |
-| G11 | No `created | linked | returning` callback outcome |
+| G11 | No create/link/return callback outcome |
