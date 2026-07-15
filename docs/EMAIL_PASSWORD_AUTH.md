@@ -394,10 +394,13 @@ return response
     "avatar_url": null,
     "created_at": "2025-01-01T00:00:00.000Z"
   },
-  "sessionId": "session_id",
-  "verificationToken": "token"
+  "sessionId": "session_id"
 }
 ```
+
+When email verification is required, ClearAuth attempts delivery through the configured
+`email.sendVerificationEmail` callback or email provider. Delivery failures are logged, but
+registration still succeeds. Verification tokens are never included in the public HTTP response.
 
 #### POST /auth/verify-email
 
