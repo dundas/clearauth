@@ -398,9 +398,9 @@ return response
 }
 ```
 
-When email verification is required, ClearAuth sends the token through the configured
-`email.sendVerificationEmail` callback or email provider. Verification tokens are never
-included in the public HTTP response.
+When email verification is required, ClearAuth attempts delivery through the configured
+`email.sendVerificationEmail` callback or email provider. Delivery failures are logged, but
+registration still succeeds. Verification tokens are never included in the public HTTP response.
 
 #### POST /auth/verify-email
 
