@@ -143,7 +143,6 @@ export interface RegisterUserResult {
     created_at: Date
   }
   sessionId: string
-  verificationToken: string
 }
 
 /**
@@ -158,7 +157,6 @@ export interface RegisterUserResult {
 export function toPublicRegisterResult(result: {
   user: User
   sessionId: string
-  verificationToken: string
 }): RegisterUserResult {
   return {
     user: {
@@ -170,6 +168,5 @@ export function toPublicRegisterResult(result: {
       created_at: result.user.created_at,
     },
     sessionId: result.sessionId,
-    verificationToken: result.verificationToken,
   }
 }

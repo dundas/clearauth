@@ -25,7 +25,7 @@ import {
 } from '../oauth/callbacks.js'
 import { AuthError, isValidReturnTo } from './utils.js'
 import { toPublicUser } from '../database/schema.js'
-import { EmailManager } from '../email/manager.js'
+import { EmailManager, hasVerificationEmailDelivery } from '../email/manager.js'
 import { issueTokenPair } from '../jwt/issue-token-pair.js'
 import { revokeRefreshTokenByValue } from '../jwt/refresh-tokens.js'
 import type { Kysely } from 'kysely'
@@ -169,12 +169,20 @@ function errorResponse(error: any): Response {
  *     "avatar_url": null,
  *     "created_at": "2025-01-01T00:00:00.000Z"
  *   },
- *   "sessionId": "session_id",
- *   "verificationToken": "token"
+ *   "sessionId": "session_id"
  * }
  * ```
  */
 async function handleRegister(request: Request, config: ClearAuthConfig): Promise<Response> {
+  if (
+    config.emailPassword?.requireEmailVerification &&
+    !hasVerificationEmailDelivery(config)
+  ) {
+    throw new Error(
+      '[ClearAuth] requireEmailVerification requires email.sendVerificationEmail or email.provider'
+    )
+  }
+
   const body = await parseJsonBody(request)
   const { email, password } = body
 
@@ -272,11 +280,17 @@ async function handleVerifyEmail(request: Request, config: ClearAuthConfig): Pro
  * Response:
  * ```json
  * {
- *   "token": "new_verification_token"
+ *   "success": true
  * }
  * ```
  */
 async function handleResendVerification(request: Request, config: ClearAuthConfig): Promise<Response> {
+  if (!hasVerificationEmailDelivery(config)) {
+    throw new Error(
+      '[ClearAuth] resend verification requires email.sendVerificationEmail or email.provider'
+    )
+  }
+
   const body = await parseJsonBody(request)
   const { email } = body
 
@@ -284,7 +298,18 @@ async function handleResendVerification(request: Request, config: ClearAuthConfi
     throw new AuthError('Email is required', 'MISSING_EMAIL', 400)
   }
 
-  const result = await resendVerificationEmail(config.database, email)
+  let result: Awaited<ReturnType<typeof resendVerificationEmail>>
+  try {
+    result = await resendVerificationEmail(config.database, email)
+  } catch (error) {
+    if (
+      error instanceof AuthError &&
+      (error.code === 'EMAIL_SENT' || error.code === 'ALREADY_VERIFIED')
+    ) {
+      return jsonResponse({ success: true })
+    }
+    throw error
+  }
   
   // Send the new verification email
   const emailManager = new EmailManager(config)
@@ -296,7 +321,7 @@ async function handleResendVerification(request: Request, config: ClearAuthConfi
     // Don't fail the request if email sending fails
   }
 
-  return jsonResponse(result)
+  return jsonResponse({ success: true })
 }
 
 /**

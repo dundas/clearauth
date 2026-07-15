@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-07-15
+
+### Security
+
+- **Registration responses no longer expose email-verification credentials** (Codex, 2026-07-15)
+  - `POST /auth/register` and `POST /auth/resend-verification` retain verification tokens internally for `sendVerificationEmail`, but omit them from JSON responses so clients, logs, and caches cannot capture the credential.
+  - Configurations that require verification now fail before user creation unless `email.sendVerificationEmail` or `email.provider` is configured.
+  - **Context:** mech-browse work order `msg-1784033326271-xb4xz4`
+
 ## [0.7.1] - 2026-07-05
 
 ### Fixed

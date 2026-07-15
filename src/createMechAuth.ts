@@ -12,6 +12,7 @@ import { ClearAuthConfigError } from "./errors.js"
 import { getDefaultLogger } from "./logger.js"
 import type { ClearAuthConfig } from "./types.js"
 import { createPbkdf2PasswordHasher } from "./password-hasher.js"
+import { hasVerificationEmailDelivery } from "./email/manager.js"
 
 // ============================================================================
 // Session & Cookie Presets
@@ -221,6 +222,15 @@ export function createClearAuth(options: CreateClearAuthOptions): ClearAuthConfi
 
   if (!options.baseUrl) {
     throw new ClearAuthConfigError("baseUrl is required", { isProduction: options.isProduction })
+  }
+
+  if (
+    options.emailPassword?.requireEmailVerification &&
+    !hasVerificationEmailDelivery(options)
+  ) {
+    throw new ClearAuthConfigError(
+      "requireEmailVerification requires email.sendVerificationEmail or email.provider"
+    )
   }
 
   // Warn about development defaults

@@ -1,6 +1,10 @@
 import type { ClearAuthConfig, EmailProvider } from '../types.js'
 import { emailTemplates } from './templates.js'
 
+export function hasVerificationEmailDelivery(config: Pick<ClearAuthConfig, 'email'>): boolean {
+  return Boolean(config.email?.sendVerificationEmail || config.email?.provider)
+}
+
 /**
  * Email Manager
  * 
