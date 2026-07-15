@@ -38,7 +38,7 @@ ClearAuth owns:
 
 - An `OAuthTransaction` model with a random identifier, provider key, state hash, PKCE material, issuer and redirect bindings, opaque adapter metadata, browser binding, expiry, and consumed timestamp.
 - An `OAuthTransactionStore` with create, load, and atomic consume operations. Consumption must be single-use.
-- One opaque transaction-pointer cookie. Cookie names must be namespaced by provider and transaction ID, or the pointer must resolve to server-side state that supports concurrent flows.
+- One opaque pointer cookie per transaction, named with both the provider key and transaction ID. The callback derives the expected cookie name from the state-bound transaction reference, atomically consumes the server-side transaction, and deletes only that transaction's cookie. No flow reads or overwrites a shared OAuth cookie.
 - Callback validation before adapter token exchange, including state, provider, expiry, redirect URI, expected issuer, browser binding, and one-time consumption.
 - An `OAuthAdapter` contract that starts a flow and exchanges a validated callback for a normalized external identity and optional upstream credentials.
 - A generic `oauth_accounts` identity model instead of adding provider columns for each new adapter.
@@ -133,4 +133,3 @@ Ohok can implement AT Protocol OAuth without forking ClearAuth when it can:
 5. Revoke or disconnect the upstream account without bypassing ClearAuth's security model.
 
 Until phases 1 through 3 and the applicable DPoP/PAR hooks are shipped, ClearAuth is an explicit no-fit for Ohok's production AT Protocol OAuth flow.
-
