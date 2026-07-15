@@ -178,4 +178,4 @@ Until phases 1 through 3 and the applicable DPoP/PAR hooks are shipped, ClearAut
 | G8 | No SSRF-safe remote discovery policy surface |
 | G9 | No serialized upstream refresh lifecycle |
 | G10 | Upstream revocation and disconnect are only partially supported |
-| G11 | No create/link/return callback outcome |
+| G11 | No `created`, `linked`, or `returning` callback outcome |
