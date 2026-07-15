@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **Registration responses no longer expose email-verification credentials** (Codex, 2026-07-15)
-  - `POST /auth/register` retains the verification token internally for `sendVerificationEmail`, but omits it from JSON responses so clients, logs, and caches cannot capture the credential.
+  - `POST /auth/register` and `POST /auth/resend-verification` retain verification tokens internally for `sendVerificationEmail`, but omit them from JSON responses so clients, logs, and caches cannot capture the credential.
   - Configurations that require verification now fail before user creation unless `email.sendVerificationEmail` or `email.provider` is configured.
   - **Context:** mech-browse work order `msg-1784033326271-xb4xz4`
 

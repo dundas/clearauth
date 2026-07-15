@@ -280,11 +280,17 @@ async function handleVerifyEmail(request: Request, config: ClearAuthConfig): Pro
  * Response:
  * ```json
  * {
- *   "token": "new_verification_token"
+ *   "success": true
  * }
  * ```
  */
 async function handleResendVerification(request: Request, config: ClearAuthConfig): Promise<Response> {
+  if (!hasVerificationEmailDelivery(config)) {
+    throw new Error(
+      '[ClearAuth] resend verification requires email.sendVerificationEmail or email.provider'
+    )
+  }
+
   const body = await parseJsonBody(request)
   const { email } = body
 
@@ -304,7 +310,7 @@ async function handleResendVerification(request: Request, config: ClearAuthConfi
     // Don't fail the request if email sending fails
   }
 
-  return jsonResponse(result)
+  return jsonResponse({ success: true })
 }
 
 /**
