@@ -204,10 +204,12 @@ Response:
     "avatar_url": null,
     "created_at": "2025-01-01T00:00:00.000Z"
   },
-  "sessionId": "session_id",
-  "verificationToken": "token"
+  "sessionId": "session_id"
 }
 ```
+
+Verification tokens are delivered only through the configured email callback or provider,
+not in the public HTTP response.
 
 ### POST /auth/login
 
