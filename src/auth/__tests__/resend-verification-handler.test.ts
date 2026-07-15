@@ -109,4 +109,32 @@ describe('POST /auth/resend-verification', () => {
     expect(data).toEqual({ success: true })
     expect(sendVerificationEmail).not.toHaveBeenCalled()
   })
+
+  it('returns the same public result when the email is already verified', async () => {
+    vi.mocked(
+      database
+        .selectFrom('users')
+        .select(['id', 'email', 'email_verified'])
+        .where('email', '=', 'verified@example.com')
+        .executeTakeFirst
+    ).mockResolvedValueOnce({
+      id: 'verified-user',
+      email: 'verified@example.com',
+      email_verified: true,
+    })
+    vi.clearAllMocks()
+
+    const request = new Request('https://example.com/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'verified@example.com' }),
+    })
+
+    const response = await handleAuthRequest(request, config)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data).toEqual({ success: true })
+    expect(sendVerificationEmail).not.toHaveBeenCalled()
+  })
 })

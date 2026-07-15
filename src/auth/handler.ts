@@ -302,7 +302,10 @@ async function handleResendVerification(request: Request, config: ClearAuthConfi
   try {
     result = await resendVerificationEmail(config.database, email)
   } catch (error) {
-    if (error instanceof AuthError && error.code === 'EMAIL_SENT') {
+    if (
+      error instanceof AuthError &&
+      (error.code === 'EMAIL_SENT' || error.code === 'ALREADY_VERIFIED')
+    ) {
       return jsonResponse({ success: true })
     }
     throw error
