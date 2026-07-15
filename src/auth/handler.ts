@@ -298,7 +298,15 @@ async function handleResendVerification(request: Request, config: ClearAuthConfi
     throw new AuthError('Email is required', 'MISSING_EMAIL', 400)
   }
 
-  const result = await resendVerificationEmail(config.database, email)
+  let result: Awaited<ReturnType<typeof resendVerificationEmail>>
+  try {
+    result = await resendVerificationEmail(config.database, email)
+  } catch (error) {
+    if (error instanceof AuthError && error.code === 'EMAIL_SENT') {
+      return jsonResponse({ success: true })
+    }
+    throw error
+  }
   
   // Send the new verification email
   const emailManager = new EmailManager(config)

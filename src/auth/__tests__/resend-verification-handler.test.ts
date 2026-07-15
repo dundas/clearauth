@@ -85,4 +85,28 @@ describe('POST /auth/resend-verification', () => {
     expect(data).toEqual({ error: 'Internal server error', code: 'INTERNAL_ERROR' })
     expect(database.selectFrom).not.toHaveBeenCalled()
   })
+
+  it('returns the same public result when the email is unknown', async () => {
+    vi.mocked(
+      database
+        .selectFrom('users')
+        .select(['id', 'email', 'email_verified'])
+        .where('email', '=', 'unknown@example.com')
+        .executeTakeFirst
+    ).mockResolvedValueOnce(undefined)
+    vi.clearAllMocks()
+
+    const request = new Request('https://example.com/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'unknown@example.com' }),
+    })
+
+    const response = await handleAuthRequest(request, config)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data).toEqual({ success: true })
+    expect(sendVerificationEmail).not.toHaveBeenCalled()
+  })
 })
