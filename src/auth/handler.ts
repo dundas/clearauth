@@ -169,8 +169,7 @@ function errorResponse(error: any): Response {
  *     "avatar_url": null,
  *     "created_at": "2025-01-01T00:00:00.000Z"
  *   },
- *   "sessionId": "session_id",
- *   "verificationToken": "token"
+ *   "sessionId": "session_id"
  * }
  * ```
  */

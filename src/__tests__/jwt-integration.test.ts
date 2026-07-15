@@ -303,6 +303,7 @@ describe("JWT Integration: POST /auth/register with jwt config", () => {
     const data = await res.json()
     expect(data.user).toBeDefined()
     expect(data.sessionId).toBeDefined()
+    expect(data).not.toHaveProperty("verificationToken")
     expect(data.tokens).toBeDefined()
     expect(data.tokens.accessToken).toMatch(/^eyJ/)
     expect(data.tokens.refreshToken).toBeDefined()

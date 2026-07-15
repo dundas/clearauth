@@ -8,6 +8,7 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
   const TEST_API_KEY = 'test-api-key'
   const TEST_SECRET = 'test-secret-key-at-least-32-chars-long'
   const hasher = createPbkdf2PasswordHasher()
+  const sendVerificationEmail = vi.fn(async () => {})
 
   const originalFetch = global.fetch
 
@@ -17,7 +18,9 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
     database: {
       appId: TEST_APP_ID,
       apiKey: TEST_API_KEY,
-    }
+    },
+    emailPassword: { enabled: true, requireEmailVerification: true },
+    email: { sendVerificationEmail },
   })
 
   afterEach(() => {
@@ -77,6 +80,13 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
     const registerData = await registerRes.json()
     expect(registerData.user.email).toBe(email)
     expect(registerData.sessionId).toBeDefined()
+    expect(registerData).not.toHaveProperty('verificationToken')
+    expect(sendVerificationEmail).toHaveBeenCalledOnce()
+    expect(sendVerificationEmail).toHaveBeenCalledWith(
+      email,
+      expect.stringMatching(/^[A-Za-z0-9_-]+$/),
+      expect.stringMatching(/^\/auth\/verify-email\?token=[A-Za-z0-9_-]+$/)
+    )
     const setCookie = registerRes.headers.get('Set-Cookie')
     expect(setCookie).toContain('session=')
 
