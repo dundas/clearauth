@@ -1,14 +1,17 @@
 import type { Kysely } from 'kysely'
 import type { Database, NewOAuthTransaction, OAuthTransaction } from '../database/schema.js'
 
-const TRANSACTION_TTL_MS = 10 * 60 * 1000
+export const OAUTH_TRANSACTION_TTL_SECONDS = 10 * 60
+const TRANSACTION_TTL_MS = OAUTH_TRANSACTION_TTL_SECONDS * 1000
 const TRANSACTION_ID_PATTERN = /^[A-Za-z0-9_-]{20,}$/
 
 export interface OAuthCallbackEvidence {
   returnedState: string
   providerKey: string
   redirectUri: string
+  /** Reserved for external adapters in Phase 3; conventional providers use no issuer binding. */
   returnedIssuer?: string
+  /** Reserved for external adapters in Phase 3; conventional providers use no adapter metadata. */
   adapterMetadata?: string
   browserBindingSecret: string
   now: Date

@@ -169,4 +169,24 @@ describe('OAuth transaction HTTP bridge', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
     globalThis.fetch = originalFetch
   })
+
+  it('clears the consumed transaction cookie when token exchange fails', async () => {
+    const startDb = transactionInsertDb()
+    const start = await handleOAuthRequest(new Request('https://app.example.com/auth/oauth/github'), oauthConfig(startDb) as any)
+    const state = new URL(start.headers.get('Location')!).searchParams.get('state')!
+    const reference = parseOAuthTransactionState(state)!
+    const db = successfulCallbackDb(startDb.transactions[0])
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn().mockRejectedValueOnce(new Error('provider unavailable')) as typeof fetch
+    const bindingCookie = getOAuthTransactionCookieName('github', reference.id)
+
+    const callback = await handleOAuthRequest(
+      new Request(`https://app.example.com/auth/callback/github?code=code&state=${state}`, { headers: { Cookie: `${bindingCookie}=binding` } }),
+      oauthConfig(db) as any,
+    )
+
+    expect(callback.status).toBe(400)
+    expect(callback.headers.get('Set-Cookie')).toContain(`${bindingCookie}=;`)
+    globalThis.fetch = originalFetch
+  })
 })

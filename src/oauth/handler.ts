@@ -26,6 +26,7 @@ import {
   createOAuthTransaction,
   createOAuthTransactionStore,
   getOAuthTransactionCookieName,
+  OAUTH_TRANSACTION_TTL_SECONDS,
   parseOAuthTransactionState,
 } from './transactions.js'
 
@@ -77,7 +78,7 @@ async function handleOAuthLogin(
       secure: config.isProduction ?? true,
       sameSite: 'lax',
       path: '/',
-      maxAge: 600, // 10 minutes
+      maxAge: OAUTH_TRANSACTION_TTL_SECONDS,
     })]
 
     const headers = createHeadersWithCookies(cookies, url.toString())
@@ -102,6 +103,7 @@ async function handleOAuthCallbackRequest(
   providerName: string,
   callbackHandler: (config: ClearAuthConfig, code: string, storedState: string, returnedState: string, codeVerifier?: string) => Promise<any>
 ): Promise<Response> {
+  let bindingCookieName: string | undefined
   try {
     const url = new URL(request.url)
     const code = url.searchParams.get('code')
@@ -122,7 +124,7 @@ async function handleOAuthCallbackRequest(
     }
 
     const cookies = parseCookies(request.headers.get('Cookie') || '')
-    const bindingCookieName = getOAuthTransactionCookieName(providerName, stateReference.id)
+    bindingCookieName = getOAuthTransactionCookieName(providerName, stateReference.id)
     const browserBindingSecret = cookies[bindingCookieName]
     if (!browserBindingSecret) {
       return new Response('Invalid OAuth callback', { status: 400 })
@@ -185,7 +187,12 @@ async function handleOAuthCallbackRequest(
     return new Response(null, { status: 302, headers })
   } catch (error) {
     console.error(providerName + ' callback error:', error) // nosemgrep
-    return new Response('OAuth callback failed', { status: 400 })
+    return new Response('OAuth callback failed', {
+      status: 400,
+      headers: bindingCookieName
+        ? createHeadersWithCookies([createDeleteCookieHeader(bindingCookieName, { path: '/' })])
+        : undefined,
+    })
   }
 }
 
