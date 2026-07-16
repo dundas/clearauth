@@ -5,7 +5,8 @@
  * Provides login initiation and callback handling endpoints.
  */
 
-import type { ClearAuthConfig, RequestContext } from '../types.js'
+import type { ClearAuthConfig, OAuthProvider, RequestContext } from '../types.js'
+import { getDefaultLogger } from '../logger.js'
 import { issueTokenPair } from '../jwt/issue-token-pair.js'
 import { generateGitHubAuthUrl, handleGitHubCallback } from './github.js'
 import { generateGoogleAuthUrl, handleGoogleCallback } from './google.js'
@@ -16,7 +17,7 @@ import { generateLinkedInAuthUrl, handleLinkedInCallback } from './linkedin.js'
 import { generateMetaAuthUrl, handleMetaCallback } from './meta.js'
 import { normalizeAuthPath } from '../utils/normalize-auth-path.js'
 import {
-  upsertOAuthUser,
+  resolveOAuthAccount,
   createSession,
   parseCookies,
   createCookieHeader,
@@ -146,7 +147,11 @@ async function handleOAuthCallbackRequest(
 
     // Provider callbacks retain their state-equality guard; the transaction store performed the real validation.
     const result = await callbackHandler(config, code, returnedState, returnedState, transaction.code_verifier ?? undefined)
-    const user = await upsertOAuthUser(config.database, providerName as any, result.profile)
+    const account = await resolveOAuthAccount(config.database, providerName, result.profile, {
+      allowVerifiedEmailLinking: true,
+    })
+    await notifyAccountResolved(config, providerName, account.user.id, account.outcome)
+    const user = account.user
     const context = getRequestContext(request)
     const expiresInSeconds = config.session?.expiresIn ?? 2592000 // 30 days
     const sessionId = await createSession(config.database, user.id, expiresInSeconds, context)
@@ -193,6 +198,22 @@ async function handleOAuthCallbackRequest(
         ? createHeadersWithCookies([createDeleteCookieHeader(bindingCookieName, { path: '/' })])
         : undefined,
     })
+  }
+}
+
+async function notifyAccountResolved(
+  config: ClearAuthConfig,
+  providerKey: string,
+  userId: string,
+  outcome: 'created' | 'linked' | 'returning',
+): Promise<void> {
+  if (!config.oauth?.onAccountResolved) return
+
+  try {
+    await config.oauth.onAccountResolved({ userId, providerKey, outcome })
+  } catch (error) {
+    const logger = config.logger ?? getDefaultLogger()
+    logger.error('OAuth account resolution hook failed', error instanceof Error ? error : { providerKey })
   }
 }
 
@@ -273,7 +294,7 @@ export async function handleOAuthRequest(
 }
 
 function getRedirectUri(config: ClearAuthConfig, providerKey: string): string {
-  const provider = config.oauth?.[providerKey as keyof NonNullable<ClearAuthConfig['oauth']>]
+  const provider = config.oauth?.[providerKey as OAuthProvider]
   if (!provider) throw new Error(`OAuth provider ${providerKey} is not configured`)
   return provider.redirectUri
 }

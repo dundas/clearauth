@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { handleOAuthRequest } from '../handler.js'
 import { getOAuthTransactionCookieName, parseOAuthTransactionState } from '../transactions.js'
 
-function oauthConfig(database: any) {
+function oauthConfig(database: any, onAccountResolved?: (event: any) => Promise<void> | void) {
   return {
     database,
     secret: 'test-secret',
@@ -19,6 +19,7 @@ function oauthConfig(database: any) {
         clientSecret: 'google-secret',
         redirectUri: 'https://app.example.com/auth/callback/google',
       },
+      onAccountResolved,
     },
   }
 }
@@ -42,26 +43,36 @@ function transactionInsertDb() {
 }
 
 function successfulCallbackDb(transaction: any) {
-  const query: any = {
-    set: () => query,
-    where: () => query,
-    returningAll: () => ({ executeTakeFirst: async () => transaction }),
-  }
   const user = {
     id: 'user-1', email: 'person@example.com', email_verified: true, password_hash: null,
     github_id: '123', google_id: null, discord_id: null, apple_id: null, microsoft_id: null, linkedin_id: null, meta_id: null,
     name: 'Person', avatar_url: null, created_at: new Date(), updated_at: new Date(),
   }
-  const noRows = { selectAll: () => noRows, where: () => noRows, executeTakeFirst: async () => undefined }
-  return {
-    updateTable: vi.fn(() => query),
-    selectFrom: vi.fn(() => noRows),
+  const noAccount = { select: () => noAccount, where: () => noAccount, executeTakeFirst: async () => undefined }
+  const legacyUser = { selectAll: () => legacyUser, where: () => legacyUser, executeTakeFirst: async () => user }
+  const transactionQuery: any = {
+    set: () => transactionQuery,
+    where: () => transactionQuery,
+    returningAll: () => ({ executeTakeFirst: async () => transaction }),
+  }
+  const userQuery: any = {
+    set: () => userQuery,
+    where: () => userQuery,
+    returningAll: () => ({ executeTakeFirstOrThrow: async () => user }),
+  }
+  const db: any = {
+    updateTable: vi.fn((table: string) => table === 'oauth_transactions' ? transactionQuery : userQuery),
+    selectFrom: vi.fn((table: string) => table === 'oauth_accounts' ? noAccount : legacyUser),
     insertInto: vi.fn((table: string) => ({
-      values: () => table === 'users'
-        ? { returningAll: () => ({ executeTakeFirstOrThrow: async () => user }) }
-        : { execute: async () => undefined },
+      values: () => {
+        if (table === 'users') return { returningAll: () => ({ executeTakeFirstOrThrow: async () => user }) }
+        if (table === 'oauth_accounts') return { onConflict: () => ({ returning: () => ({ executeTakeFirst: async () => ({ id: 'account-1' }) }) }) }
+        return { execute: async () => undefined }
+      },
     })),
   }
+  db.transaction = () => ({ execute: async (callback: (transaction: any) => Promise<unknown>) => callback(db) })
+  return db
 }
 
 describe('OAuth transaction HTTP bridge', () => {
@@ -167,6 +178,30 @@ describe('OAuth transaction HTTP bridge', () => {
     )
     expect(replay.status).toBe(400)
     expect(fetchSpy).not.toHaveBeenCalled()
+    globalThis.fetch = originalFetch
+  })
+
+  it('emits only a redacted account outcome and does not block auth when the hook fails', async () => {
+    const startDb = transactionInsertDb()
+    const start = await handleOAuthRequest(new Request('https://app.example.com/auth/oauth/github'), oauthConfig(startDb) as any)
+    const state = new URL(start.headers.get('Location')!).searchParams.get('state')!
+    const reference = parseOAuthTransactionState(state)!
+    const db = successfulCallbackDb(startDb.transactions[0])
+    const hook = vi.fn().mockRejectedValue(new Error('observer unavailable'))
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'access-token', token_type: 'bearer' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 123, login: 'person', email: 'person@example.com', name: 'Person', avatar_url: null }), { status: 200 })) as typeof fetch
+    const bindingCookie = getOAuthTransactionCookieName('github', reference.id)
+
+    const callback = await handleOAuthRequest(
+      new Request(`https://app.example.com/auth/callback/github?code=code&state=${state}`, { headers: { Cookie: `${bindingCookie}=binding` } }),
+      oauthConfig(db, hook) as any,
+    )
+
+    expect(callback.status).toBe(302)
+    expect(hook).toHaveBeenCalledWith({ userId: 'user-1', providerKey: 'github', outcome: 'returning' })
+    expect(hook.mock.calls[0][0]).toEqual({ userId: expect.any(String), providerKey: 'github', outcome: 'returning' })
     globalThis.fetch = originalFetch
   })
 

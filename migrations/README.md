@@ -16,6 +16,7 @@ The mech-auth project uses PostgreSQL via the Mech Storage HTTP API. Since we do
 | `004_create_reset_tokens.sql` | Password reset tokens | `rollback_004.sql` |
 | `009_create_oauth_transactions.sql` | Server-side OAuth callback transactions | `rollback_009.sql` |
 | `010_harden_oauth_transaction_metadata.sql` | Forward compatibility for early OAuth transaction previews | `rollback_010.sql` |
+| `011_create_oauth_accounts.sql` | Provider-neutral OAuth identities during legacy-column deprecation | `rollback_011.sql` |
 
 ## Prerequisites
 
@@ -47,6 +48,7 @@ psql $DATABASE_URL -f migrations/003_create_verification_tokens.sql
 psql $DATABASE_URL -f migrations/004_create_reset_tokens.sql
 psql $DATABASE_URL -f migrations/009_create_oauth_transactions.sql
 psql $DATABASE_URL -f migrations/010_harden_oauth_transaction_metadata.sql
+psql $DATABASE_URL -f migrations/011_create_oauth_accounts.sql
 ```
 
 ### Option 2: Using Interactive psql
@@ -62,6 +64,7 @@ psql $DATABASE_URL
 \i migrations/004_create_reset_tokens.sql
 \i migrations/009_create_oauth_transactions.sql
 \i migrations/010_harden_oauth_transaction_metadata.sql
+\i migrations/011_create_oauth_accounts.sql
 
 # Exit
 \q
@@ -82,6 +85,7 @@ To rollback migrations (in reverse order):
 
 ```bash
 # Rollback in reverse order
+psql $DATABASE_URL -f migrations/rollback_011.sql
 psql $DATABASE_URL -f migrations/rollback_010.sql
 psql $DATABASE_URL -f migrations/rollback_009.sql
 psql $DATABASE_URL -f migrations/rollback_004.sql
@@ -109,6 +113,7 @@ psql $DATABASE_URL
 \d email_verification_tokens
 \d password_reset_tokens
 \d oauth_transactions
+\d oauth_accounts
 
 # List all indexes
 \di

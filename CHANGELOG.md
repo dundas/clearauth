@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - OAuth callbacks now use server-side, one-time transactions with provider, redirect URI, issuer, adapter-metadata, expiry, state, and browser-binding validation. Conventional providers no longer use shared `oauth_state` or `oauth_code_verifier` cookies.
   - Apply migrations `009_create_oauth_transactions.sql` and `010_harden_oauth_transaction_metadata.sql` before deployment; see `docs/OAUTH_TRANSACTION_DEPLOYMENT.md` for the intentional fail-closed transition guidance.
 
+- **Provider-neutral OAuth account outcomes** (Codex, 2026-07-15)
+  - **Context:** [PRD 0005](tasks/0005-prd-provider-agnostic-oauth-extension-surface.md) | Phase 2
+  - OAuth identities now resolve through additive `oauth_accounts` records and report `created`, `linked`, or `returning` outcomes through the server-side resolution API. The public `upsertOAuthUser()` return type remains `Promise<User>` for compatibility.
+  - `oauth.onAccountResolved` receives a redacted server-side `{ userId, providerKey, outcome }` event before session/JWT issuance; hook failures are logged without blocking authentication.
+  - Apply `migrations/011_create_oauth_accounts.sql` before deployment. Existing conventional provider columns remain populated and are lazily backfilled into generic account records on login.
+
 ## [0.7.2] - 2026-07-15
 
 ### Security
