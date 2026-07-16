@@ -14,6 +14,8 @@ The mech-auth project uses PostgreSQL via the Mech Storage HTTP API. Since we do
 | `002_create_sessions_table.sql` | Session management with expiration tracking | `rollback_002.sql` |
 | `003_create_verification_tokens.sql` | Email verification tokens | `rollback_003.sql` |
 | `004_create_reset_tokens.sql` | Password reset tokens | `rollback_004.sql` |
+| `009_create_oauth_transactions.sql` | Server-side OAuth callback transactions | `rollback_009.sql` |
+| `010_harden_oauth_transaction_metadata.sql` | Forward compatibility for early OAuth transaction previews | `rollback_010.sql` |
 | `009_create_oauth_transactions.sql` | One-time OAuth callback transactions | `rollback_009.sql` |
 
 ## Prerequisites

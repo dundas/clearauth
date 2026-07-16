@@ -2,7 +2,7 @@
 
 ## Prerequisite
 
-Apply `migrations/009_create_oauth_transactions.sql` before deploying the Phase 1 OAuth transaction code. The application needs the `oauth_transactions` table for every OAuth login and callback. Use `migrations/rollback_009.sql` only to roll back the application deployment; it permanently removes unfinished transaction records.
+Apply `migrations/009_create_oauth_transactions.sql` and `migrations/010_harden_oauth_transaction_metadata.sql`, in order, before deploying the Phase 1 OAuth transaction code. The application needs the `oauth_transactions` table for every OAuth login and callback. Migration 010 is a safe no-op for new installations and converts an early preview schema without requiring an operator to rewrite an applied migration. Use `migrations/rollback_009.sql` only to roll back the application deployment; it permanently removes unfinished transaction records.
 
 ## Release Transition
 
