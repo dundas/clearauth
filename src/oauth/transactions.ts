@@ -9,6 +9,7 @@ export interface OAuthCallbackEvidence {
   providerKey: string
   redirectUri: string
   returnedIssuer?: string
+  adapterMetadata?: string
   browserBindingSecret: string
   now: Date
 }
@@ -69,7 +70,7 @@ export async function createOAuthTransaction(input: CreateOAuthTransactionInput)
       code_verifier: input.codeVerifier ?? null,
       redirect_uri: input.redirectUri,
       expected_issuer: input.expectedIssuer ?? null,
-      adapter_metadata: input.adapterMetadata ?? null,
+      adapter_metadata_hash: input.adapterMetadata ? await sha256(input.adapterMetadata) : null,
       browser_binding_hash: await sha256(browserBindingSecret),
       expires_at: expiresAt,
       consumed_at: null,
@@ -109,6 +110,7 @@ export function createOAuthTransactionStore(db: Kysely<Database>): OAuthTransact
         .where('provider_key', '=', evidence.providerKey)
         .where('redirect_uri', '=', evidence.redirectUri)
         .where('expected_issuer', 'is', evidence.returnedIssuer ?? null)
+        .where('adapter_metadata_hash', 'is', evidence.adapterMetadata ? await sha256(evidence.adapterMetadata) : null)
         .where('browser_binding_hash', '=', await sha256(evidence.browserBindingSecret))
         .where('expires_at', '>', evidence.now)
         .where('consumed_at', 'is', null)

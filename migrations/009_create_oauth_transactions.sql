@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS oauth_transactions (
   code_verifier TEXT,
   redirect_uri TEXT NOT NULL,
   expected_issuer TEXT,
-  adapter_metadata TEXT,
+  adapter_metadata_hash CHAR(64),
   browser_binding_hash CHAR(64) NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   consumed_at TIMESTAMPTZ,
@@ -19,3 +19,4 @@ CREATE INDEX IF NOT EXISTS idx_oauth_transactions_expires_at ON oauth_transactio
 
 COMMENT ON TABLE oauth_transactions IS 'One-time server-side OAuth transactions. State and browser-binding values are stored only as hashes.';
 COMMENT ON COLUMN oauth_transactions.code_verifier IS 'Server-side PKCE verifier. Never expose through a browser-facing API.';
+COMMENT ON COLUMN oauth_transactions.adapter_metadata_hash IS 'Hash of opaque adapter callback metadata; raw metadata is never persisted in this table.';

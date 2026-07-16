@@ -119,6 +119,16 @@ describe('OAuth transaction HTTP bridge', () => {
     fetchSpy.mockRestore()
   })
 
+  it('does not reflect provider authorization error details', async () => {
+    const response = await handleOAuthRequest(
+      new Request('https://app.example.com/auth/callback/github?error=access_denied&error_description=private-provider-detail'),
+      oauthConfig({}) as any,
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.text()).toBe('OAuth authorization was denied')
+  })
+
   it('deletes only the consumed transaction cookie and rejects a replay before exchange', async () => {
     const startDb = transactionInsertDb()
     const start = await handleOAuthRequest(new Request('https://app.example.com/auth/oauth/github'), oauthConfig(startDb) as any)

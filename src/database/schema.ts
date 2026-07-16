@@ -165,7 +165,7 @@ export interface OAuthTransactionsTable {
   code_verifier: string | null
   redirect_uri: string
   expected_issuer: string | null
-  adapter_metadata: string | null
+  adapter_metadata_hash: string | null
   browser_binding_hash: string
   expires_at: Date
   consumed_at: Date | null

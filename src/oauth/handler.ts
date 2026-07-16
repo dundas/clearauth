@@ -109,7 +109,7 @@ async function handleOAuthCallbackRequest(
     const error = url.searchParams.get('error')
 
     if (error) {
-      return new Response(`OAuth error: ${error}`, { status: 400 })
+      return new Response('OAuth authorization was denied', { status: 400 })
     }
 
     if (!code || !returnedState) {
