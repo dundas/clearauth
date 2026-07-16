@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Transaction-bound OAuth callbacks** (Codex, 2026-07-15)
+  - **Context:** [PRD 0005](tasks/0005-prd-provider-agnostic-oauth-extension-surface.md) | Phase 1
+  - OAuth callbacks now use server-side, one-time transactions with provider, redirect URI, issuer, adapter-metadata, expiry, state, and browser-binding validation. Conventional providers no longer use shared `oauth_state` or `oauth_code_verifier` cookies.
+  - Apply migrations `009_create_oauth_transactions.sql` and `010_harden_oauth_transaction_metadata.sql` before deployment; see `docs/OAUTH_TRANSACTION_DEPLOYMENT.md` for the intentional fail-closed transition guidance.
+
 ## [0.7.2] - 2026-07-15
 
 ### Security

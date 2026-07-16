@@ -22,6 +22,7 @@ export * from "./oauth/apple.js"
 export * from "./oauth/microsoft.js"
 export * from "./oauth/linkedin.js"
 export * from "./oauth/meta.js"
+export * from "./oauth/transactions.js"
 
 // Email/Password authentication
 export * from "./auth/utils.js"

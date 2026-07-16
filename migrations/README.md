@@ -14,6 +14,8 @@ The mech-auth project uses PostgreSQL via the Mech Storage HTTP API. Since we do
 | `002_create_sessions_table.sql` | Session management with expiration tracking | `rollback_002.sql` |
 | `003_create_verification_tokens.sql` | Email verification tokens | `rollback_003.sql` |
 | `004_create_reset_tokens.sql` | Password reset tokens | `rollback_004.sql` |
+| `009_create_oauth_transactions.sql` | Server-side OAuth callback transactions | `rollback_009.sql` |
+| `010_harden_oauth_transaction_metadata.sql` | Forward compatibility for early OAuth transaction previews | `rollback_010.sql` |
 
 ## Prerequisites
 
@@ -43,6 +45,8 @@ psql $DATABASE_URL -f migrations/001_create_users_table.sql
 psql $DATABASE_URL -f migrations/002_create_sessions_table.sql
 psql $DATABASE_URL -f migrations/003_create_verification_tokens.sql
 psql $DATABASE_URL -f migrations/004_create_reset_tokens.sql
+psql $DATABASE_URL -f migrations/009_create_oauth_transactions.sql
+psql $DATABASE_URL -f migrations/010_harden_oauth_transaction_metadata.sql
 ```
 
 ### Option 2: Using Interactive psql
@@ -56,6 +60,8 @@ psql $DATABASE_URL
 \i migrations/002_create_sessions_table.sql
 \i migrations/003_create_verification_tokens.sql
 \i migrations/004_create_reset_tokens.sql
+\i migrations/009_create_oauth_transactions.sql
+\i migrations/010_harden_oauth_transaction_metadata.sql
 
 # Exit
 \q
@@ -76,6 +82,8 @@ To rollback migrations (in reverse order):
 
 ```bash
 # Rollback in reverse order
+psql $DATABASE_URL -f migrations/rollback_010.sql
+psql $DATABASE_URL -f migrations/rollback_009.sql
 psql $DATABASE_URL -f migrations/rollback_004.sql
 psql $DATABASE_URL -f migrations/rollback_003.sql
 psql $DATABASE_URL -f migrations/rollback_002.sql
@@ -100,6 +108,7 @@ psql $DATABASE_URL
 \d sessions
 \d email_verification_tokens
 \d password_reset_tokens
+\d oauth_transactions
 
 # List all indexes
 \di

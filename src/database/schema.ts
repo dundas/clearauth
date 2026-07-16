@@ -12,6 +12,8 @@
  * @see /migrations/006_create_refresh_tokens.sql
  * @see /migrations/007_create_devices_table.sql
  * @see /migrations/008_create_challenges_table.sql
+ * @see /migrations/009_create_oauth_transactions.sql
+ * @see /migrations/010_harden_oauth_transaction_metadata.sql
  */
 
 import type { ColumnType, Selectable, Insertable, Updateable } from 'kysely'
@@ -157,6 +159,21 @@ export interface ChallengesTable {
   expires_at: Date // Challenges expire after 10 minutes
 }
 
+/** One-time OAuth callback transactions. Secrets are hashed except for the server-only PKCE verifier. */
+export interface OAuthTransactionsTable {
+  id: string
+  provider_key: string
+  state_hash: string
+  code_verifier: string | null
+  redirect_uri: string
+  expected_issuer: string | null
+  adapter_metadata_hash: string | null
+  browser_binding_hash: string
+  expires_at: Date
+  consumed_at: Date | null
+  created_at: ColumnType<Date, Date | undefined, never>
+}
+
 /**
  * Database Schema
  *
@@ -171,6 +188,7 @@ export interface Database {
   refresh_tokens: RefreshTokensTable
   devices: DevicesTable
   challenges: ChallengesTable
+  oauth_transactions: OAuthTransactionsTable
 }
 
 /**
@@ -184,6 +202,7 @@ export type MagicLinkToken = Selectable<MagicLinkTokensTable>
 export type RefreshToken = Selectable<RefreshTokensTable>
 export type Device = Selectable<DevicesTable>
 export type Challenge = Selectable<ChallengesTable>
+export type OAuthTransaction = Selectable<OAuthTransactionsTable>
 
 /**
  * Type-safe input types for INSERT queries
@@ -196,6 +215,7 @@ export type NewMagicLinkToken = Insertable<MagicLinkTokensTable>
 export type NewRefreshToken = Insertable<RefreshTokensTable>
 export type NewDevice = Insertable<DevicesTable>
 export type NewChallenge = Insertable<ChallengesTable>
+export type NewOAuthTransaction = Insertable<OAuthTransactionsTable>
 
 /**
  * Type-safe input types for UPDATE queries
@@ -208,6 +228,7 @@ export type MagicLinkTokenUpdate = Updateable<MagicLinkTokensTable>
 export type RefreshTokenUpdate = Updateable<RefreshTokensTable>
 export type DeviceUpdate = Updateable<DevicesTable>
 export type ChallengeUpdate = Updateable<ChallengesTable>
+export type OAuthTransactionUpdate = Updateable<OAuthTransactionsTable>
 
 /**
  * User with session information (common join result)
