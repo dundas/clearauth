@@ -14,6 +14,7 @@
  * @see /migrations/008_create_challenges_table.sql
  * @see /migrations/009_create_oauth_transactions.sql
  * @see /migrations/010_harden_oauth_transaction_metadata.sql
+ * @see /migrations/011_create_oauth_accounts.sql
  */
 
 import type { ColumnType, Selectable, Insertable, Updateable } from 'kysely'
@@ -175,6 +176,19 @@ export interface OAuthTransactionsTable {
 }
 
 /**
+ * Provider-neutral OAuth identities. Legacy provider columns on users remain
+ * populated during the deprecation window, but new lookups use this table.
+ */
+export interface OAuthAccountsTable {
+  id: ColumnType<string, string | undefined, never>
+  user_id: string
+  provider_key: string
+  subject: string
+  created_at: ColumnType<Date, Date | undefined, never>
+  updated_at: ColumnType<Date, Date | undefined, Date>
+}
+
+/**
  * Database Schema
  *
  * Complete database schema for Kysely type-safe queries.
@@ -189,6 +203,7 @@ export interface Database {
   devices: DevicesTable
   challenges: ChallengesTable
   oauth_transactions: OAuthTransactionsTable
+  oauth_accounts: OAuthAccountsTable
 }
 
 /**
@@ -203,6 +218,7 @@ export type RefreshToken = Selectable<RefreshTokensTable>
 export type Device = Selectable<DevicesTable>
 export type Challenge = Selectable<ChallengesTable>
 export type OAuthTransaction = Selectable<OAuthTransactionsTable>
+export type OAuthAccount = Selectable<OAuthAccountsTable>
 
 /**
  * Type-safe input types for INSERT queries
@@ -216,6 +232,7 @@ export type NewRefreshToken = Insertable<RefreshTokensTable>
 export type NewDevice = Insertable<DevicesTable>
 export type NewChallenge = Insertable<ChallengesTable>
 export type NewOAuthTransaction = Insertable<OAuthTransactionsTable>
+export type NewOAuthAccount = Insertable<OAuthAccountsTable>
 
 /**
  * Type-safe input types for UPDATE queries
@@ -229,6 +246,7 @@ export type RefreshTokenUpdate = Updateable<RefreshTokensTable>
 export type DeviceUpdate = Updateable<DevicesTable>
 export type ChallengeUpdate = Updateable<ChallengesTable>
 export type OAuthTransactionUpdate = Updateable<OAuthTransactionsTable>
+export type OAuthAccountUpdate = Updateable<OAuthAccountsTable>
 
 /**
  * User with session information (common join result)

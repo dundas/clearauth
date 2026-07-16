@@ -29,10 +29,183 @@ function generateSessionId(entropySize: number = 25): string {
 }
 
 /**
- * Upsert user from OAuth profile
- *
- * Creates a new user or updates an existing user based on the OAuth provider ID.
- * Uses github_id or google_id column to identify existing users.
+ * Result of resolving an external OAuth identity to a ClearAuth user.
+ * `linked` is returned only for an explicit link request or a verified-email
+ * compatibility link made by the legacy wrapper.
+ */
+export type OAuthAccountOutcome = 'created' | 'linked' | 'returning'
+
+export interface OAuthAccountResolution {
+  user: User
+  outcome: OAuthAccountOutcome
+}
+
+export interface ResolveOAuthAccountOptions {
+  /** Link this identity to a known, authenticated ClearAuth user. */
+  linkToUserId?: string
+  /**
+   * Transitional compatibility option for conventional providers. This must
+   * never link an unverified provider email to an existing account.
+   */
+  allowVerifiedEmailLinking?: boolean
+}
+
+export class OAuthAccountLinkingRequiredError extends Error {
+  constructor() {
+    super('An OAuth account with this email must be linked by an authenticated user')
+    this.name = 'OAuthAccountLinkingRequiredError'
+  }
+}
+
+const LEGACY_PROVIDER_ID_COLUMNS: Record<string, keyof User & string> = {
+  github: 'github_id',
+  google: 'google_id',
+  discord: 'discord_id',
+  apple: 'apple_id',
+  microsoft: 'microsoft_id',
+  linkedin: 'linkedin_id',
+  meta: 'meta_id',
+}
+
+function legacyProviderIdColumn(providerKey: string): (keyof User & string) | undefined {
+  return LEGACY_PROVIDER_ID_COLUMNS[providerKey]
+}
+
+async function updateOAuthProfile(db: Kysely<Database>, user: User, profile: OAuthUserProfile): Promise<User> {
+  return db
+    .updateTable('users')
+    .set({
+      // An unverified provider address must not replace the account email.
+      email: profile.email_verified === true ? profile.email : user.email,
+      name: profile.name ?? user.name,
+      avatar_url: profile.avatar_url ?? user.avatar_url,
+      email_verified: profile.email_verified ?? user.email_verified,
+    })
+    .where('id', '=', user.id)
+    .returningAll()
+    .executeTakeFirstOrThrow()
+}
+
+async function createOAuthAccount(
+  db: Kysely<Database>,
+  providerKey: string,
+  subject: string,
+  userId: string
+): Promise<boolean> {
+  const inserted = await db
+    .insertInto('oauth_accounts')
+    .values({ provider_key: providerKey, subject, user_id: userId })
+    .onConflict((conflict) => conflict.columns(['provider_key', 'subject']).doNothing())
+    .returning(['id'])
+    .executeTakeFirst()
+
+  return Boolean(inserted)
+}
+
+async function findOAuthAccountUser(
+  db: Kysely<Database>,
+  providerKey: string,
+  subject: string
+): Promise<User | undefined> {
+  const account = await db
+    .selectFrom('oauth_accounts')
+    .select(['user_id'])
+    .where('provider_key', '=', providerKey)
+    .where('subject', '=', subject)
+    .executeTakeFirst()
+
+  if (!account) return undefined
+
+  return db.selectFrom('users').selectAll().where('id', '=', account.user_id).executeTakeFirst()
+}
+
+/**
+ * Resolve an OAuth profile through the generic provider/subject account table.
+ * Existing legacy provider columns are consulted only to backfill an account
+ * during the additive migration period.
+ */
+export async function resolveOAuthAccount(
+  db: Kysely<Database>,
+  providerKey: string,
+  profile: OAuthUserProfile,
+  options: ResolveOAuthAccountOptions = {}
+): Promise<OAuthAccountResolution> {
+  const existingAccountUser = await findOAuthAccountUser(db, providerKey, profile.id)
+  if (existingAccountUser) {
+    return { user: await updateOAuthProfile(db, existingAccountUser, profile), outcome: 'returning' }
+  }
+
+  const legacyColumn = legacyProviderIdColumn(providerKey)
+  if (legacyColumn) {
+    const legacyUser = await db
+      .selectFrom('users')
+      .selectAll()
+      .where(legacyColumn, '=', profile.id)
+      .executeTakeFirst()
+
+    if (legacyUser) {
+      const inserted = await createOAuthAccount(db, providerKey, profile.id, legacyUser.id)
+      if (!inserted) {
+        const racedUser = await findOAuthAccountUser(db, providerKey, profile.id)
+        if (racedUser) return { user: await updateOAuthProfile(db, racedUser, profile), outcome: 'returning' }
+      }
+      return { user: await updateOAuthProfile(db, legacyUser, profile), outcome: 'returning' }
+    }
+  }
+
+  let user: User | undefined
+  let outcome: OAuthAccountOutcome
+
+  if (options.linkToUserId) {
+    user = await db.selectFrom('users').selectAll().where('id', '=', options.linkToUserId).executeTakeFirst()
+    if (!user) throw new Error('OAuth account link target was not found')
+    outcome = 'linked'
+  } else {
+    const userByEmail = await db.selectFrom('users').selectAll().where('email', '=', profile.email).executeTakeFirst()
+    if (userByEmail) {
+      if (!options.allowVerifiedEmailLinking || profile.email_verified !== true) {
+        throw new OAuthAccountLinkingRequiredError()
+      }
+      user = userByEmail
+      outcome = 'linked'
+    } else {
+      const newUser: NewUser = {
+        email: profile.email,
+        email_verified: profile.email_verified ?? false,
+        password_hash: null,
+        ...(legacyColumn ? { [legacyColumn]: profile.id } : {}),
+        name: profile.name,
+        avatar_url: profile.avatar_url,
+      }
+      user = await db.insertInto('users').values(newUser).returningAll().executeTakeFirstOrThrow()
+      outcome = 'created'
+    }
+  }
+
+  const inserted = await createOAuthAccount(db, providerKey, profile.id, user.id)
+  if (!inserted) {
+    const racedUser = await findOAuthAccountUser(db, providerKey, profile.id)
+    if (racedUser) return { user: await updateOAuthProfile(db, racedUser, profile), outcome: 'returning' }
+    throw new Error('Unable to create OAuth account identity')
+  }
+
+  if (legacyColumn && user[legacyColumn] !== profile.id) {
+    user = await db
+      .updateTable('users')
+      .set({ [legacyColumn]: profile.id })
+      .where('id', '=', user.id)
+      .returningAll()
+      .executeTakeFirstOrThrow()
+  }
+
+  return { user: await updateOAuthProfile(db, user, profile), outcome }
+}
+
+/**
+ * Legacy compatibility wrapper. Conventional providers retain their existing
+ * email-link behavior only where the upstream provider explicitly verifies the
+ * email address. New integrations should use resolveOAuthAccount() and pass an
+ * authenticated linkToUserId when linking an identity.
  *
  * @param db - Kysely database instance
  * @param provider - OAuth provider name
@@ -49,73 +222,8 @@ export async function upsertOAuthUser(
   provider: OAuthProvider,
   profile: OAuthUserProfile
 ): Promise<User> {
-  const providerIdColumn = `${provider}_id` as keyof User & string
-
-  // Check if user exists by provider ID
-  const existingUser = await db
-    .selectFrom('users')
-    .selectAll()
-    .where(providerIdColumn, '=', profile.id)
-    .executeTakeFirst()
-
-  if (existingUser) {
-    // Update existing user with latest profile data
-    const updatedUser = await db
-      .updateTable('users')
-      .set({
-        email: profile.email,
-        name: profile.name,
-        avatar_url: profile.avatar_url,
-        email_verified: profile.email_verified ?? existingUser.email_verified,
-      })
-      .where('id', '=', existingUser.id)
-      .returningAll()
-      .executeTakeFirstOrThrow()
-
-    return updatedUser
-  }
-
-  // Check if user exists by email (linking accounts)
-  const userByEmail = await db
-    .selectFrom('users')
-    .selectAll()
-    .where('email', '=', profile.email)
-    .executeTakeFirst()
-
-  if (userByEmail) {
-    // Link OAuth provider to existing email account
-    const updatedUser = await db
-      .updateTable('users')
-      .set({
-        [providerIdColumn]: profile.id,
-        name: profile.name || userByEmail.name,
-        avatar_url: profile.avatar_url || userByEmail.avatar_url,
-        email_verified: profile.email_verified || userByEmail.email_verified,
-      })
-      .where('id', '=', userByEmail.id)
-      .returningAll()
-      .executeTakeFirstOrThrow()
-
-    return updatedUser
-  }
-
-  // Create new user
-  const newUser: NewUser = {
-    email: profile.email,
-    email_verified: profile.email_verified ?? false,
-    password_hash: null, // OAuth-only user
-    [providerIdColumn]: profile.id,
-    name: profile.name,
-    avatar_url: profile.avatar_url,
-  }
-
-  const createdUser = await db
-    .insertInto('users')
-    .values(newUser)
-    .returningAll()
-    .executeTakeFirstOrThrow()
-
-  return createdUser
+  const result = await resolveOAuthAccount(db, provider, profile, { allowVerifiedEmailLinking: true })
+  return result.user
 }
 
 /**

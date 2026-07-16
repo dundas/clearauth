@@ -42,24 +42,32 @@ function transactionInsertDb() {
 }
 
 function successfulCallbackDb(transaction: any) {
-  const query: any = {
-    set: () => query,
-    where: () => query,
-    returningAll: () => ({ executeTakeFirst: async () => transaction }),
-  }
   const user = {
     id: 'user-1', email: 'person@example.com', email_verified: true, password_hash: null,
     github_id: '123', google_id: null, discord_id: null, apple_id: null, microsoft_id: null, linkedin_id: null, meta_id: null,
     name: 'Person', avatar_url: null, created_at: new Date(), updated_at: new Date(),
   }
-  const noRows = { selectAll: () => noRows, where: () => noRows, executeTakeFirst: async () => undefined }
+  const noAccount = { select: () => noAccount, where: () => noAccount, executeTakeFirst: async () => undefined }
+  const legacyUser = { selectAll: () => legacyUser, where: () => legacyUser, executeTakeFirst: async () => user }
+  const transactionQuery: any = {
+    set: () => transactionQuery,
+    where: () => transactionQuery,
+    returningAll: () => ({ executeTakeFirst: async () => transaction }),
+  }
+  const userQuery: any = {
+    set: () => userQuery,
+    where: () => userQuery,
+    returningAll: () => ({ executeTakeFirstOrThrow: async () => user }),
+  }
   return {
-    updateTable: vi.fn(() => query),
-    selectFrom: vi.fn(() => noRows),
+    updateTable: vi.fn((table: string) => table === 'oauth_transactions' ? transactionQuery : userQuery),
+    selectFrom: vi.fn((table: string) => table === 'oauth_accounts' ? noAccount : legacyUser),
     insertInto: vi.fn((table: string) => ({
-      values: () => table === 'users'
-        ? { returningAll: () => ({ executeTakeFirstOrThrow: async () => user }) }
-        : { execute: async () => undefined },
+      values: () => {
+        if (table === 'users') return { returningAll: () => ({ executeTakeFirstOrThrow: async () => user }) }
+        if (table === 'oauth_accounts') return { onConflict: () => ({ returning: () => ({ executeTakeFirst: async () => ({ id: 'account-1' }) }) }) }
+        return { execute: async () => undefined }
+      },
     })),
   }
 }

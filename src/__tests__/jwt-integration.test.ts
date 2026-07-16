@@ -843,7 +843,7 @@ describe("JWT Integration: OAuth callback with jwt config issues JWT cookies", (
   it("sets jwt_access_token and jwt_refresh_token cookies on OAuth callback when jwt is configured", async () => {
     const userId = "user-uuid-oauth-jwt"
     const email = "oauthjwt@example.com"
-    const githubId = "gh-12345"
+    const githubId = "12345"
     const refreshTokenId = "refresh-token-uuid-oauth"
 
     const config = createClearAuth({
@@ -898,19 +898,51 @@ describe("JWT Integration: OAuth callback with jwt config issues JWT cookies", (
         }),
       })
       .mockResolvedValueOnce({
-        // upsertOAuthUser: SELECT by github_id — user not found
+        // resolveOAuthAccount: SELECT generic account — not found
         ok: true,
         status: 200,
         json: async () => ({ success: true, rows: [], rowCount: 0 }),
       })
       .mockResolvedValueOnce({
-        // upsertOAuthUser: SELECT by email — also not found (new user)
+        // resolveOAuthAccount: SELECT legacy github ID — not found
         ok: true,
         status: 200,
         json: async () => ({ success: true, rows: [], rowCount: 0 }),
       })
       .mockResolvedValueOnce({
-        // upsertOAuthUser: INSERT new user
+        // resolveOAuthAccount: SELECT by email — not found
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, rows: [], rowCount: 0 }),
+      })
+      .mockResolvedValueOnce({
+        // resolveOAuthAccount: INSERT new user
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [
+            {
+              id: userId,
+              email,
+              github_id: githubId,
+              name: "Test GitHub User",
+              avatar_url: "https://avatars.githubusercontent.com/u/12345",
+              email_verified: true,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          rowCount: 1,
+        }),
+      })
+      .mockResolvedValueOnce({
+        // resolveOAuthAccount: INSERT generic account
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, rows: [{ id: 'oauth-account-id' }], rowCount: 1 }),
+      })
+      .mockResolvedValueOnce({
+        // resolveOAuthAccount: update profile
         ok: true,
         status: 200,
         json: async () => ({
