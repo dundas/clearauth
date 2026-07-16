@@ -105,18 +105,27 @@ export function createOAuthTransactionStore(db: Kysely<Database>): OAuthTransact
 
     async validateAndConsume(id, evidence) {
       // This conditional update is the sole validation/consumption operation. It is safe under concurrent callbacks.
-      const transaction = await db
+      let query = db
         .updateTable('oauth_transactions')
         .set({ consumed_at: evidence.now })
         .where('id', '=', id)
         .where('state_hash', '=', await sha256(evidence.returnedState))
         .where('provider_key', '=', evidence.providerKey)
         .where('redirect_uri', '=', evidence.redirectUri)
-        .where('expected_issuer', 'is', evidence.returnedIssuer ?? null)
-        .where('adapter_metadata_hash', 'is', evidence.adapterMetadata ? await sha256(evidence.adapterMetadata) : null)
         .where('browser_binding_hash', '=', await sha256(evidence.browserBindingSecret))
         .where('expires_at', '>', evidence.now)
         .where('consumed_at', 'is', null)
+
+      query = evidence.returnedIssuer === undefined
+        ? query.where('expected_issuer', 'is', null)
+        : query.where('expected_issuer', '=', evidence.returnedIssuer)
+
+      const metadataHash = evidence.adapterMetadata ? await sha256(evidence.adapterMetadata) : null
+      query = metadataHash === null
+        ? query.where('adapter_metadata_hash', 'is', null)
+        : query.where('adapter_metadata_hash', '=', metadataHash)
+
+      const transaction = await query
         .returningAll()
         .executeTakeFirst()
       return transaction ?? null

@@ -12,6 +12,8 @@
  * @see /migrations/006_create_refresh_tokens.sql
  * @see /migrations/007_create_devices_table.sql
  * @see /migrations/008_create_challenges_table.sql
+ * @see /migrations/009_create_oauth_transactions.sql
+ * @see /migrations/010_harden_oauth_transaction_metadata.sql
  */
 
 import type { ColumnType, Selectable, Insertable, Updateable } from 'kysely'

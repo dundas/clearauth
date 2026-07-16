@@ -11,3 +11,7 @@ Phase 1 deliberately rejects callbacks that rely on the retired global `oauth_st
 New flows set a short-lived, HttpOnly, provider-and-transaction-specific browser-binding cookie. Multiple tabs and providers can run independently; completing a callback deletes only its matching cookie.
 
 Conventional providers do not currently supply issuer or adapter metadata, so their transactions intentionally bind those fields to `NULL`. The stored fields and atomic predicates are extension scaffolding; issuer and adapter-metadata enforcement begins only when Phase 3 external adapters supply both expected and returned values.
+
+## Expiry Cleanup
+
+Transactions expire after ten minutes but are not removed automatically by request handling. Schedule `createOAuthTransactionStore(config.database).cleanupExpired()` as a periodic server-side maintenance task. Rate-limit the OAuth login route at the consuming application or edge in the same way as other unauthenticated authentication entry points.

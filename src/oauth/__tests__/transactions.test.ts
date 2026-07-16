@@ -43,6 +43,7 @@ describe('OAuth transaction core', () => {
     const prepared = await createOAuthTransaction({
       providerKey: 'github',
       redirectUri: 'https://app.example.com/auth/callback/github',
+      expectedIssuer: 'https://issuer.example.com',
       adapterMetadata: 'adapter-callback-binding',
     })
     const whereCalls: unknown[][] = []
@@ -64,6 +65,7 @@ describe('OAuth transaction core', () => {
       returnedState: prepared.state,
       providerKey: 'github',
       redirectUri: 'https://app.example.com/auth/callback/github',
+      returnedIssuer: 'https://issuer.example.com',
       browserBindingSecret: prepared.browserBindingSecret,
       adapterMetadata: 'adapter-callback-binding',
       now: new Date(),
@@ -73,8 +75,8 @@ describe('OAuth transaction core', () => {
     expect(whereCalls).toContainEqual(['id', '=', prepared.id])
     expect(whereCalls).toContainEqual(['provider_key', '=', 'github'])
     expect(whereCalls).toContainEqual(['redirect_uri', '=', 'https://app.example.com/auth/callback/github'])
-    expect(whereCalls).toContainEqual(['expected_issuer', 'is', null])
-    expect(whereCalls.some(([column]) => column === 'adapter_metadata_hash')).toBe(true)
+    expect(whereCalls).toContainEqual(['expected_issuer', '=', 'https://issuer.example.com'])
+    expect(whereCalls.some(([column, operator]) => column === 'adapter_metadata_hash' && operator === '=')).toBe(true)
     expect(whereCalls).toContainEqual(['expires_at', '>', expect.any(Date)])
     expect(whereCalls).toContainEqual(['consumed_at', 'is', null])
     expect(whereCalls.some(([column]) => column === 'state_hash')).toBe(true)
