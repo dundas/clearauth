@@ -865,7 +865,7 @@ describe("JWT Integration: OAuth callback with jwt config issues JWT cookies", (
       validateAuthorizationCode: vi.fn().mockResolvedValue({
         accessToken: () => "github-access-token",
       }),
-      createAuthorizationURL: vi.fn(),
+      createAuthorizationURL: vi.fn().mockReturnValue(new URL("https://github.com/login/oauth/authorize?state=provider-state")),
     }
     vi.spyOn(arcticProviders, "createGitHubProvider").mockReturnValue(mockGitHubProvider as any)
 
@@ -873,6 +873,18 @@ describe("JWT Integration: OAuth callback with jwt config issues JWT cookies", (
     global.fetch = fetchMock as unknown as typeof fetch
 
     fetchMock
+      .mockResolvedValueOnce({
+        // OAuth transaction INSERT
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, rows: [{ id: "transaction-id" }], rowCount: 1 }),
+      })
+      .mockResolvedValueOnce({
+        // Atomic OAuth transaction consume
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, rows: [{ code_verifier: null }], rowCount: 1 }),
+      })
       .mockResolvedValueOnce({
         // GitHub user API (fetchGitHubUserProfile)
         ok: true,
@@ -945,14 +957,19 @@ describe("JWT Integration: OAuth callback with jwt config issues JWT cookies", (
         }),
       })
 
-    // The callback needs a matching state cookie
-    const state = "test-oauth-state-12345"
+    // Start the flow to create its server-side transaction and matching binding cookie.
+    const start = await handleClearAuthRequest(
+      new Request("https://example.com/auth/oauth/github", { method: "GET" }),
+      config,
+    )
+    const state = new URL(start.headers.get("Location")!).searchParams.get("state")!
+    const bindingCookie = start.headers.get("Set-Cookie")!.split(";")[0]
     const req = new Request(
       `https://example.com/auth/callback/github?code=github-code&state=${state}`,
       {
         method: "GET",
         headers: {
-          Cookie: `oauth_state=${state}`,
+          Cookie: bindingCookie,
         },
       }
     )

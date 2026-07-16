@@ -22,6 +22,12 @@ import {
   createCookieHeader,
   createDeleteCookieHeader,
 } from './callbacks.js'
+import {
+  createOAuthTransaction,
+  createOAuthTransactionStore,
+  getOAuthTransactionCookieName,
+  parseOAuthTransactionState,
+} from './transactions.js'
 
 /**
  * Helper to create Headers with multiple Set-Cookie headers
@@ -53,30 +59,26 @@ function createHeadersWithCookies(cookies: string[], location?: string): Headers
  */
 async function handleOAuthLogin(
   config: ClearAuthConfig,
+  providerKey: string,
   providerName: string,
   authUrlGenerator: (config: ClearAuthConfig) => Promise<{ url: URL; state: string; codeVerifier?: string }>
 ): Promise<Response> {
   try {
     const { url, state, codeVerifier } = await authUrlGenerator(config)
+    const redirectUri = getRedirectUri(config, providerKey)
+    const prepared = await createOAuthTransaction({ providerKey, redirectUri, codeVerifier })
+    const store = createOAuthTransactionStore(config.database)
+    await store.create(prepared.transaction)
+    url.searchParams.set('state', prepared.state)
 
-    const cookies: string[] = []
-    cookies.push(createCookieHeader('oauth_state', state, {
+    const cookieName = getOAuthTransactionCookieName(providerKey, prepared.id)
+    const cookies = [createCookieHeader(cookieName, prepared.browserBindingSecret, {
       httpOnly: true,
       secure: config.isProduction ?? true,
       sameSite: 'lax',
       path: '/',
       maxAge: 600, // 10 minutes
-    }))
-
-    if (codeVerifier) {
-      cookies.push(createCookieHeader('oauth_code_verifier', codeVerifier, {
-        httpOnly: true,
-        secure: config.isProduction ?? true,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 600, // 10 minutes
-      }))
-    }
+    })]
 
     const headers = createHeadersWithCookies(cookies, url.toString())
     return new Response(null, { status: 302, headers })
@@ -114,15 +116,34 @@ async function handleOAuthCallbackRequest(
       return new Response('Missing code or state parameter', { status: 400 })
     }
 
-    const cookies = parseCookies(request.headers.get('Cookie') || '')
-    const storedState = cookies['oauth_state']
-    const codeVerifier = cookies['oauth_code_verifier']
-
-    if (!storedState) {
-      return new Response('Missing state cookie', { status: 400 })
+    const stateReference = parseOAuthTransactionState(returnedState)
+    if (!stateReference) {
+      return new Response('Invalid OAuth state parameter', { status: 400 })
     }
 
-    const result = await callbackHandler(config, code, storedState, returnedState, codeVerifier)
+    const cookies = parseCookies(request.headers.get('Cookie') || '')
+    const bindingCookieName = getOAuthTransactionCookieName(providerName, stateReference.id)
+    const browserBindingSecret = cookies[bindingCookieName]
+    if (!browserBindingSecret) {
+      return new Response('Invalid OAuth callback', { status: 400 })
+    }
+
+    const transaction = await createOAuthTransactionStore(config.database).validateAndConsume(stateReference.id, {
+      returnedState,
+      providerKey: providerName,
+      redirectUri: getRedirectUri(config, providerName),
+      browserBindingSecret,
+      now: new Date(),
+    })
+    if (!transaction) {
+      return new Response('Invalid OAuth callback', {
+        status: 400,
+        headers: createHeadersWithCookies([createDeleteCookieHeader(bindingCookieName, { path: '/' })]),
+      })
+    }
+
+    // Provider callbacks retain their state-equality guard; the transaction store performed the real validation.
+    const result = await callbackHandler(config, code, returnedState, returnedState, transaction.code_verifier ?? undefined)
     const user = await upsertOAuthUser(config.database, providerName as any, result.profile)
     const context = getRequestContext(request)
     const expiresInSeconds = config.session?.expiresIn ?? 2592000 // 30 days
@@ -138,10 +159,7 @@ async function handleOAuthCallbackRequest(
       maxAge: expiresInSeconds,
     })
 
-    const deleteCookies = [createDeleteCookieHeader('oauth_state', { path: '/' })]
-    if (codeVerifier) {
-      deleteCookies.push(createDeleteCookieHeader('oauth_code_verifier', { path: '/' }))
-    }
+    const deleteCookies = [createDeleteCookieHeader(bindingCookieName, { path: '/' })]
 
     const additionalCookies: string[] = []
     if (config.jwt) {
@@ -167,8 +185,7 @@ async function handleOAuthCallbackRequest(
     return new Response(null, { status: 302, headers })
   } catch (error) {
     console.error(providerName + ' callback error:', error) // nosemgrep
-    const message = error instanceof Error ? error.message : 'OAuth callback failed'
-    return new Response(message, { status: 400 })
+    return new Response('OAuth callback failed', { status: 400 })
   }
 }
 
@@ -191,7 +208,7 @@ export async function handleOAuthRequest(
 
   // GitHub
   if (pathname === '/auth/oauth/github' || pathname === '/auth/github/login') {
-    return handleOAuthLogin(config, 'GitHub', generateGitHubAuthUrl)
+    return handleOAuthLogin(config, 'github', 'GitHub', generateGitHubAuthUrl)
   }
   if (pathname === '/auth/callback/github' || pathname === '/auth/github/callback') {
     return handleOAuthCallbackRequest(request, config, 'github', handleGitHubCallback)
@@ -199,7 +216,7 @@ export async function handleOAuthRequest(
 
   // Google
   if (pathname === '/auth/oauth/google' || pathname === '/auth/google/login') {
-    return handleOAuthLogin(config, 'Google', generateGoogleAuthUrl)
+    return handleOAuthLogin(config, 'google', 'Google', generateGoogleAuthUrl)
   }
   if (pathname === '/auth/callback/google' || pathname === '/auth/google/callback') {
     return handleOAuthCallbackRequest(request, config, 'google', (c, code, s, r, v) => handleGoogleCallback(c, code, s, r, v!))
@@ -207,7 +224,7 @@ export async function handleOAuthRequest(
 
   // Discord
   if (pathname === '/auth/oauth/discord' || pathname === '/auth/discord/login') {
-    return handleOAuthLogin(config, 'Discord', generateDiscordAuthUrl)
+    return handleOAuthLogin(config, 'discord', 'Discord', generateDiscordAuthUrl)
   }
   if (pathname === '/auth/callback/discord' || pathname === '/auth/discord/callback') {
     return handleOAuthCallbackRequest(request, config, 'discord', handleDiscordCallback)
@@ -215,7 +232,7 @@ export async function handleOAuthRequest(
 
   // Apple
   if (pathname === '/auth/oauth/apple' || pathname === '/auth/apple/login') {
-    return handleOAuthLogin(config, 'Apple', generateAppleAuthUrl)
+    return handleOAuthLogin(config, 'apple', 'Apple', generateAppleAuthUrl)
   }
   if (pathname === '/auth/callback/apple' || pathname === '/auth/apple/callback') {
     return handleOAuthCallbackRequest(request, config, 'apple', handleAppleCallback)
@@ -223,7 +240,7 @@ export async function handleOAuthRequest(
 
   // Microsoft
   if (pathname === '/auth/oauth/microsoft' || pathname === '/auth/microsoft/login') {
-    return handleOAuthLogin(config, 'Microsoft', generateMicrosoftAuthUrl)
+    return handleOAuthLogin(config, 'microsoft', 'Microsoft', generateMicrosoftAuthUrl)
   }
   if (pathname === '/auth/callback/microsoft' || pathname === '/auth/microsoft/callback') {
     return handleOAuthCallbackRequest(request, config, 'microsoft', (c, code, s, r, v) => handleMicrosoftCallback(c, code, s, r, v!))
@@ -231,7 +248,7 @@ export async function handleOAuthRequest(
 
   // LinkedIn
   if (pathname === '/auth/oauth/linkedin' || pathname === '/auth/linkedin/login') {
-    return handleOAuthLogin(config, 'LinkedIn', generateLinkedInAuthUrl)
+    return handleOAuthLogin(config, 'linkedin', 'LinkedIn', generateLinkedInAuthUrl)
   }
   if (pathname === '/auth/callback/linkedin' || pathname === '/auth/linkedin/callback') {
     return handleOAuthCallbackRequest(request, config, 'linkedin', handleLinkedInCallback)
@@ -239,13 +256,19 @@ export async function handleOAuthRequest(
 
   // Meta
   if (pathname === '/auth/oauth/meta' || pathname === '/auth/meta/login') {
-    return handleOAuthLogin(config, 'Meta', generateMetaAuthUrl)
+    return handleOAuthLogin(config, 'meta', 'Meta', generateMetaAuthUrl)
   }
   if (pathname === '/auth/callback/meta' || pathname === '/auth/meta/callback') {
     return handleOAuthCallbackRequest(request, config, 'meta', handleMetaCallback)
   }
 
   return new Response('Not Found', { status: 404 })
+}
+
+function getRedirectUri(config: ClearAuthConfig, providerKey: string): string {
+  const provider = config.oauth?.[providerKey as keyof NonNullable<ClearAuthConfig['oauth']>]
+  if (!provider) throw new Error(`OAuth provider ${providerKey} is not configured`)
+  return provider.redirectUri
 }
 
 /**
