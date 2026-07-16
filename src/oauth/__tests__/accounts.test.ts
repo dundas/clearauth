@@ -182,6 +182,45 @@ describe('generic OAuth account resolution', () => {
     expect(result).toMatchObject({ outcome: 'returning', user: { id: winner.id } })
   })
 
+  it('links a verified cross-provider email winner after a user-creation race', async () => {
+    const { db, state } = createDatabase()
+    const winner = { id: 'winner-user', email: 'cross-provider@example.com', email_verified: true, password_hash: null, name: null, avatar_url: null } as User
+    const originalTransaction = (db as any).transaction
+    let firstTransaction = true
+    ;(db as any).transaction = () => ({
+      execute: async (callback: (transaction: any) => Promise<unknown>) => {
+        if (!firstTransaction) return originalTransaction().execute(callback)
+        firstTransaction = false
+        state.users.push(winner)
+        state.oauth_accounts.push({ id: 'google-account', user_id: winner.id, provider_key: 'google', subject: 'google-subject' })
+        throw new Error('duplicate key value violates unique constraint users_email_key')
+      },
+    })
+
+    const result = await resolveOAuthAccount(db, 'github', profile('github-subject', winner.email), { allowVerifiedEmailLinking: true })
+    expect(result).toMatchObject({ outcome: 'linked', user: { id: winner.id } })
+    expect(state.oauth_accounts).toMatchObject([
+      { provider_key: 'google', subject: 'google-subject', user_id: winner.id },
+      { provider_key: 'github', subject: 'github-subject', user_id: winner.id },
+    ])
+  })
+
+  it('rejects an unverified cross-provider email winner after a user-creation race', async () => {
+    const { db, state } = createDatabase()
+    const winner = { id: 'winner-user', email: 'cross-provider@example.com', email_verified: true, password_hash: null, name: null, avatar_url: null } as User
+    ;(db as any).transaction = () => ({
+      execute: async () => {
+        state.users.push(winner)
+        state.oauth_accounts.push({ id: 'google-account', user_id: winner.id, provider_key: 'google', subject: 'google-subject' })
+        throw new Error('duplicate key value violates unique constraint users_email_key')
+      },
+    })
+
+    await expect(resolveOAuthAccount(db, 'github', profile('github-subject', winner.email, false), { allowVerifiedEmailLinking: true }))
+      .rejects.toBeInstanceOf(OAuthAccountLinkingRequiredError)
+    expect(state.oauth_accounts).toHaveLength(1)
+  })
+
   it('rejects an unverified email collision but preserves verified legacy linking', async () => {
     const existing = { id: 'existing-user', email: 'shared@example.com', email_verified: true, password_hash: 'hash', name: null, avatar_url: null } as User
     const { db, state } = createDatabase([existing])

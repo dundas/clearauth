@@ -60,7 +60,7 @@ function successfulCallbackDb(transaction: any) {
     where: () => userQuery,
     returningAll: () => ({ executeTakeFirstOrThrow: async () => user }),
   }
-  return {
+  const db: any = {
     updateTable: vi.fn((table: string) => table === 'oauth_transactions' ? transactionQuery : userQuery),
     selectFrom: vi.fn((table: string) => table === 'oauth_accounts' ? noAccount : legacyUser),
     insertInto: vi.fn((table: string) => ({
@@ -71,6 +71,8 @@ function successfulCallbackDb(transaction: any) {
       },
     })),
   }
+  db.transaction = () => ({ execute: async (callback: (transaction: any) => Promise<unknown>) => callback(db) })
+  return db
 }
 
 describe('OAuth transaction HTTP bridge', () => {

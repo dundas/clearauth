@@ -141,6 +141,36 @@ async function createNewOAuthUserWithAccount(
   })
 }
 
+async function linkOAuthAccountAndUpdateUser(
+  db: Kysely<Database>,
+  providerKey: string,
+  profile: OAuthUserProfile,
+  user: User,
+  legacyColumn: (keyof User & string) | undefined,
+  outcome: OAuthAccountOutcome,
+): Promise<OAuthAccountResolution> {
+  return db.transaction().execute(async (transaction) => {
+    const inserted = await createOAuthAccount(transaction, providerKey, profile.id, user.id)
+    if (!inserted) {
+      const racedUser = await findOAuthAccountUser(transaction, providerKey, profile.id)
+      if (!racedUser) throw new Error('Unable to create OAuth account identity')
+      return { user: await updateOAuthProfile(transaction, racedUser, profile), outcome: 'returning' }
+    }
+
+    let linkedUser = user
+    if (legacyColumn && linkedUser[legacyColumn] !== profile.id) {
+      linkedUser = await transaction
+        .updateTable('users')
+        .set({ [legacyColumn]: profile.id })
+        .where('id', '=', linkedUser.id)
+        .returningAll()
+        .executeTakeFirstOrThrow()
+    }
+
+    return { user: await updateOAuthProfile(transaction, linkedUser, profile), outcome }
+  })
+}
+
 /**
  * Resolve an OAuth profile through the generic provider/subject account table.
  * Existing legacy provider columns are consulted only to backfill an account
@@ -166,12 +196,7 @@ export async function resolveOAuthAccount(
       .executeTakeFirst()
 
     if (legacyUser) {
-      const inserted = await createOAuthAccount(db, providerKey, profile.id, legacyUser.id)
-      if (!inserted) {
-        const racedUser = await findOAuthAccountUser(db, providerKey, profile.id)
-        if (racedUser) return { user: await updateOAuthProfile(db, racedUser, profile), outcome: 'returning' }
-      }
-      return { user: await updateOAuthProfile(db, legacyUser, profile), outcome: 'returning' }
+      return linkOAuthAccountAndUpdateUser(db, providerKey, profile, legacyUser, legacyColumn, 'returning')
     }
   }
 
@@ -195,29 +220,19 @@ export async function resolveOAuthAccount(
         return { user: await createNewOAuthUserWithAccount(db, providerKey, profile, legacyColumn), outcome: 'created' }
       } catch (error) {
         const racedUser = await findOAuthAccountUser(db, providerKey, profile.id)
-        if (!racedUser) throw error
-        return { user: await updateOAuthProfile(db, racedUser, profile), outcome: 'returning' }
+        if (racedUser) return { user: await updateOAuthProfile(db, racedUser, profile), outcome: 'returning' }
+
+        const racedEmailUser = await db.selectFrom('users').selectAll().where('email', '=', profile.email).executeTakeFirst()
+        if (!racedEmailUser) throw error
+        if (!options.allowVerifiedEmailLinking || profile.email_verified !== true) {
+          throw new OAuthAccountLinkingRequiredError()
+        }
+        return linkOAuthAccountAndUpdateUser(db, providerKey, profile, racedEmailUser, legacyColumn, 'linked')
       }
     }
   }
 
-  const inserted = await createOAuthAccount(db, providerKey, profile.id, user.id)
-  if (!inserted) {
-    const racedUser = await findOAuthAccountUser(db, providerKey, profile.id)
-    if (racedUser) return { user: await updateOAuthProfile(db, racedUser, profile), outcome: 'returning' }
-    throw new Error('Unable to create OAuth account identity')
-  }
-
-  if (legacyColumn && user[legacyColumn] !== profile.id) {
-    user = await db
-      .updateTable('users')
-      .set({ [legacyColumn]: profile.id })
-      .where('id', '=', user.id)
-      .returningAll()
-      .executeTakeFirstOrThrow()
-  }
-
-  return { user: await updateOAuthProfile(db, user, profile), outcome }
+  return linkOAuthAccountAndUpdateUser(db, providerKey, profile, user, legacyColumn, outcome)
 }
 
 /**
