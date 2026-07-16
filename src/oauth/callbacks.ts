@@ -119,6 +119,28 @@ async function findOAuthAccountUser(
   return db.selectFrom('users').selectAll().where('id', '=', account.user_id).executeTakeFirst()
 }
 
+async function createNewOAuthUserWithAccount(
+  db: Kysely<Database>,
+  providerKey: string,
+  profile: OAuthUserProfile,
+  legacyColumn: (keyof User & string) | undefined,
+): Promise<User> {
+  return db.transaction().execute(async (transaction) => {
+    const newUser: NewUser = {
+      email: profile.email,
+      email_verified: profile.email_verified ?? false,
+      password_hash: null,
+      ...(legacyColumn ? { [legacyColumn]: profile.id } : {}),
+      name: profile.name,
+      avatar_url: profile.avatar_url,
+    }
+    const user = await transaction.insertInto('users').values(newUser).returningAll().executeTakeFirstOrThrow()
+    const inserted = await createOAuthAccount(transaction, providerKey, profile.id, user.id)
+    if (!inserted) throw new Error('OAuth account subject already exists')
+    return user
+  })
+}
+
 /**
  * Resolve an OAuth profile through the generic provider/subject account table.
  * Existing legacy provider columns are consulted only to backfill an account
@@ -169,16 +191,13 @@ export async function resolveOAuthAccount(
       user = userByEmail
       outcome = 'linked'
     } else {
-      const newUser: NewUser = {
-        email: profile.email,
-        email_verified: profile.email_verified ?? false,
-        password_hash: null,
-        ...(legacyColumn ? { [legacyColumn]: profile.id } : {}),
-        name: profile.name,
-        avatar_url: profile.avatar_url,
+      try {
+        return { user: await createNewOAuthUserWithAccount(db, providerKey, profile, legacyColumn), outcome: 'created' }
+      } catch (error) {
+        const racedUser = await findOAuthAccountUser(db, providerKey, profile.id)
+        if (!racedUser) throw error
+        return { user: await updateOAuthProfile(db, racedUser, profile), outcome: 'returning' }
       }
-      user = await db.insertInto('users').values(newUser).returningAll().executeTakeFirstOrThrow()
-      outcome = 'created'
     }
   }
 

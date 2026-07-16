@@ -14,9 +14,13 @@ Conventional providers do not currently supply issuer or adapter metadata, so th
 
 ## Account Migration
 
-Phase 2 retains existing `users.*_id` provider columns during the deprecation window, including for new conventional OAuth users. On a conventional login that has only a legacy provider ID, ClearAuth creates the matching `oauth_accounts` row before completing the callback. No bulk backfill is required for the release, although operators may backfill known identities before deployment if they need reporting to include dormant accounts.
+Phase 2 retains existing `users.*_id` provider columns during the deprecation window, including for new conventional OAuth users. PostgreSQL operators must apply migration 011 because it adds the five conventional columns absent from its original schema (`discord_id`, `apple_id`, `microsoft_id`, `linkedin_id`, and `meta_id`) and retires its old row-local `users_auth_method_check`: a PostgreSQL check cannot enforce the generic `oauth_accounts` relation. Generic accounts are now the OAuth authentication source of truth. On a conventional login that has only a legacy provider ID, ClearAuth creates the matching `oauth_accounts` row before completing the callback. No bulk backfill is required for the release, although operators may backfill known identities before deployment if they need reporting to include dormant accounts.
 
-An OAuth identity with a provider-verified email may retain the legacy automatic email-link behavior. An unverified provider email never silently links to an existing ClearAuth account; the callback fails and a future authenticated account-link flow is required. Rollback `011` only after rolling back application code that depends on generic account lookup.
+An OAuth identity with a provider-verified email may retain the legacy automatic email-link behavior. An unverified provider email never silently links to an existing ClearAuth account; the callback fails and a future authenticated account-link flow is required. Rollback `011` only after rolling back application code that depends on generic account lookup. The rollback intentionally does not remove compatibility columns or reinstate the former GitHub/Google-only authentication constraint, because either could invalidate users created after this migration.
+
+## Account Resolution Hook
+
+Server applications may configure `oauth.onAccountResolved` to observe account resolution before ClearAuth creates a session or issues JWTs. Its event is deliberately redacted to `{ userId, providerKey, outcome }`, where `outcome` is `created`, `linked`, or `returning`; it never receives OAuth profile data, codes, browser-binding values, or tokens. Hook failures are logged through the configured ClearAuth logger and do not block authentication.
 
 ## Expiry Cleanup
 

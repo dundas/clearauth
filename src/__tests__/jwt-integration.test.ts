@@ -942,26 +942,6 @@ describe("JWT Integration: OAuth callback with jwt config issues JWT cookies", (
         json: async () => ({ success: true, rows: [{ id: 'oauth-account-id' }], rowCount: 1 }),
       })
       .mockResolvedValueOnce({
-        // resolveOAuthAccount: update profile
-        ok: true,
-        status: 200,
-        json: async () => ({
-          success: true,
-          rows: [
-            {
-              id: userId,
-              email,
-              github_id: githubId,
-              name: "Test GitHub User",
-              avatar_url: "https://avatars.githubusercontent.com/u/12345",
-              email_verified: true,
-              created_at: new Date().toISOString(),
-            },
-          ],
-          rowCount: 1,
-        }),
-      })
-      .mockResolvedValueOnce({
         // createSession INSERT
         ok: true,
         status: 200,

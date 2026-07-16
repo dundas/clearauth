@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { handleOAuthRequest } from '../handler.js'
 import { getOAuthTransactionCookieName, parseOAuthTransactionState } from '../transactions.js'
 
-function oauthConfig(database: any) {
+function oauthConfig(database: any, onAccountResolved?: (event: any) => Promise<void> | void) {
   return {
     database,
     secret: 'test-secret',
@@ -19,6 +19,7 @@ function oauthConfig(database: any) {
         clientSecret: 'google-secret',
         redirectUri: 'https://app.example.com/auth/callback/google',
       },
+      onAccountResolved,
     },
   }
 }
@@ -175,6 +176,30 @@ describe('OAuth transaction HTTP bridge', () => {
     )
     expect(replay.status).toBe(400)
     expect(fetchSpy).not.toHaveBeenCalled()
+    globalThis.fetch = originalFetch
+  })
+
+  it('emits only a redacted account outcome and does not block auth when the hook fails', async () => {
+    const startDb = transactionInsertDb()
+    const start = await handleOAuthRequest(new Request('https://app.example.com/auth/oauth/github'), oauthConfig(startDb) as any)
+    const state = new URL(start.headers.get('Location')!).searchParams.get('state')!
+    const reference = parseOAuthTransactionState(state)!
+    const db = successfulCallbackDb(startDb.transactions[0])
+    const hook = vi.fn().mockRejectedValue(new Error('observer unavailable'))
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'access-token', token_type: 'bearer' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 123, login: 'person', email: 'person@example.com', name: 'Person', avatar_url: null }), { status: 200 })) as typeof fetch
+    const bindingCookie = getOAuthTransactionCookieName('github', reference.id)
+
+    const callback = await handleOAuthRequest(
+      new Request(`https://app.example.com/auth/callback/github?code=code&state=${state}`, { headers: { Cookie: `${bindingCookie}=binding` } }),
+      oauthConfig(db, hook) as any,
+    )
+
+    expect(callback.status).toBe(302)
+    expect(hook).toHaveBeenCalledWith({ userId: 'user-1', providerKey: 'github', outcome: 'returning' })
+    expect(hook.mock.calls[0][0]).toEqual({ userId: expect.any(String), providerKey: 'github', outcome: 'returning' })
     globalThis.fetch = originalFetch
   })
 

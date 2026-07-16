@@ -24,6 +24,16 @@ export interface OAuthProviderConfig {
  */
 export type OAuthProvider = 'github' | 'google' | 'discord' | 'apple' | 'microsoft' | 'linkedin' | 'meta'
 
+/**
+ * Server-only notification emitted after a provider identity is resolved.
+ * It intentionally excludes profile data, OAuth codes, and token material.
+ */
+export interface OAuthAccountResolvedEvent {
+  userId: string
+  providerKey: string
+  outcome: 'created' | 'linked' | 'returning'
+}
+
 export interface OAuthProvidersConfig {
   github?: OAuthProviderConfig
   google?: OAuthProviderConfig
@@ -32,6 +42,11 @@ export interface OAuthProvidersConfig {
   microsoft?: OAuthProviderConfig & { tenantId?: string }
   linkedin?: OAuthProviderConfig
   meta?: OAuthProviderConfig
+  /**
+   * Invoked after OAuth account resolution and before session/JWT issuance.
+   * Failures are logged and do not interrupt successful authentication.
+   */
+  onAccountResolved?: (event: OAuthAccountResolvedEvent) => Promise<void> | void
 }
 
 /**

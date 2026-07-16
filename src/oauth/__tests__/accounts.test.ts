@@ -99,9 +99,22 @@ function createDatabase(users: User[] = []) {
     return query
   }
 
+  let transactionCalls = 0
+  const db = {
+    selectFrom,
+    insertInto,
+    updateTable,
+    transaction: () => ({
+      execute: async (callback: (transaction: typeof db) => Promise<unknown>) => {
+        transactionCalls += 1
+        return callback(db)
+      },
+    }),
+  }
   return {
-    db: { selectFrom, insertInto, updateTable } as unknown as Kysely<Database>,
+    db: db as unknown as Kysely<Database>,
     state,
+    get transactionCalls() { return transactionCalls },
   }
 }
 
@@ -115,10 +128,12 @@ const profile = (id: string, email = `${id}@example.com`, verified = true) => ({
 
 describe('generic OAuth account resolution', () => {
   it('creates a generic account and reports a created outcome', async () => {
-    const { db, state } = createDatabase()
+    const database = createDatabase()
+    const { db, state } = database
     const result = await resolveOAuthAccount(db, 'example', profile('subject-1'))
 
     expect(result.outcome).toBe('created')
+    expect(database.transactionCalls).toBe(1)
     expect(state.oauth_accounts).toMatchObject([{ provider_key: 'example', subject: 'subject-1', user_id: result.user.id }])
   })
 
@@ -150,6 +165,21 @@ describe('generic OAuth account resolution', () => {
 
     expect(repeated).toMatchObject({ outcome: 'returning', user: { id: first.id } })
     expect(state.oauth_accounts).toHaveLength(1)
+  })
+
+  it('returns the winning account after a concurrent user-creation uniqueness failure', async () => {
+    const { db, state } = createDatabase()
+    const winner = { id: 'winner-user', email: 'race@example.com', email_verified: true, password_hash: null, name: null, avatar_url: null } as User
+    ;(db as any).transaction = () => ({
+      execute: async () => {
+        state.users.push(winner)
+        state.oauth_accounts.push({ id: 'account-race', user_id: winner.id, provider_key: 'example', subject: 'subject-race' })
+        throw new Error('duplicate key value violates unique constraint users_email_key')
+      },
+    })
+
+    const result = await resolveOAuthAccount(db, 'example', profile('subject-race', winner.email))
+    expect(result).toMatchObject({ outcome: 'returning', user: { id: winner.id } })
   })
 
   it('rejects an unverified email collision but preserves verified legacy linking', async () => {

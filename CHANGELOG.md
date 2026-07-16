@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Provider-neutral OAuth account outcomes** (Codex, 2026-07-15)
   - **Context:** [PRD 0005](tasks/0005-prd-provider-agnostic-oauth-extension-surface.md) | Phase 2
   - OAuth identities now resolve through additive `oauth_accounts` records and report `created`, `linked`, or `returning` outcomes through the server-side resolution API. The public `upsertOAuthUser()` return type remains `Promise<User>` for compatibility.
+  - `oauth.onAccountResolved` receives a redacted server-side `{ userId, providerKey, outcome }` event before session/JWT issuance; hook failures are logged without blocking authentication.
   - Apply `migrations/011_create_oauth_accounts.sql` before deployment. Existing conventional provider columns remain populated and are lazily backfilled into generic account records on login.
 
 ## [0.7.2] - 2026-07-15
