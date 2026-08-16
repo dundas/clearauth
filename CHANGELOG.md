@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-08-16
+
+### Fixed
+
+- **Mech Storage canonical app IDs** — Preserve `app_<uuid>` in PostgreSQL API
+  request paths so the URL identity matches the identity bound to `X-API-Key`.
+  This restores login and session queries after Mech Storage authentication
+  tightening. (Codex, 2026-08-16)
+
 ### Added
 
 - **Transaction-bound OAuth callbacks** (Codex, 2026-07-15)
