@@ -11,10 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Mech Storage canonical app IDs** — Preserve `app_<uuid>` in PostgreSQL API
-  request paths so the URL identity matches the identity bound to `X-API-Key`.
-  This restores login and session queries after Mech Storage authentication
-  tightening. (Codex, 2026-08-16)
+- **Mech Storage canonical app IDs** — Normalize a bare UUID to `app_<uuid>` and
+  preserve canonical IDs in PostgreSQL API request paths so the URL identity
+  matches the identity bound to `X-API-Key`. This restores login and session
+  queries after Mech Storage authentication tightening. (Codex, 2026-08-16)
 
 ### Added
 

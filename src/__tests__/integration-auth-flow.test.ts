@@ -34,7 +34,7 @@ describe("Integration: Auth Flow (Register -> Login -> Session -> Logout)", () =
     const userId = "user-uuid-123"
     const sessionId = "session-random-id-123"
 
-    const expectedMechUrl = `https://storage.mechdna.net/api/apps/${TEST_APP_ID}/postgresql/query`
+    const expectedMechUrl = `https://storage.mechdna.net/api/apps/app_${TEST_APP_ID}/postgresql/query`
 
     // 1. Mock Registration
     // - Check if user exists (none)

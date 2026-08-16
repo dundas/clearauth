@@ -15,7 +15,6 @@ import * as arcticProviders from "../oauth/arctic-providers.js"
 const TEST_APP_ID = "550e8400-e29b-41d4-a716-446655440001"
 const TEST_API_KEY = "test-api-key-jwt"
 const TEST_SECRET = "test-secret-key-at-least-32-chars-long"
-const expectedMechUrl = `https://storage.mechdna.net/api/apps/${TEST_APP_ID}/postgresql/query`
 
 const hasher = createPbkdf2PasswordHasher()
 
