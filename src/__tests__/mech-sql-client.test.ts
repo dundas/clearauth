@@ -102,7 +102,7 @@ describe("MechSqlClient", () => {
       expect(headers["X-App-ID"]).toBeUndefined()
     })
 
-    it("should strip app_ prefix from appId in URL path", async () => {
+    it("should preserve app_ prefix from appId in URL path", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -122,9 +122,7 @@ describe("MechSqlClient", () => {
 
       const fetchCall = (global.fetch as any).mock.calls[0]
       const url = fetchCall[0] as string
-      // URL should use the raw UUID, not app_UUID
-      expect(url).toContain(`/api/apps/${validUuid}/`)
-      expect(url).not.toContain("app_")
+      expect(url).toBe(`https://storage.mechdna.net/api/apps/app_${validUuid}/postgresql/query`)
     })
 
     it("should handle empty result set", async () => {
