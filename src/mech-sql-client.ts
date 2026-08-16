@@ -153,7 +153,9 @@ export class MechSqlClient {
   }
 
   private async executeOnce<R = unknown>(sql: string, params: readonly unknown[]): Promise<{ rows: R[]; rowCount: number }> {
-    const canonicalAppId = this.appId.startsWith("app_") ? this.appId : `app_${this.appId}`
+    const canonicalAppId = /^app_/i.test(this.appId)
+      ? `app_${this.appId.slice(4)}`
+      : `app_${this.appId}`
     const url = `${this.baseUrl.replace(/\/$/, "")}/api/apps/${canonicalAppId}/postgresql/query`
 
     this.logger.debug("Executing SQL query", {

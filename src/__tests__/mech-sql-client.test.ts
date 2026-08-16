@@ -145,6 +145,25 @@ describe("MechSqlClient", () => {
       expect(url).not.toContain(`app_app_${validUuid}`)
     })
 
+    it("should canonicalize an uppercase app_ prefix without double-prefixing", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          rows: [],
+          rowCount: 0
+        })
+      })
+
+      const client = new MechSqlClient({ ...baseConfig, appId: `APP_${validUuid}` })
+      await client.execute("SELECT 1")
+
+      const url = (global.fetch as any).mock.calls[0][0] as string
+      expect(url).toBe(`https://storage.mechdna.net/api/apps/app_${validUuid}/postgresql/query`)
+      expect(url).not.toContain(`app_APP_${validUuid}`)
+    })
+
     it("should handle empty result set", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
