@@ -21,6 +21,7 @@ import {
   revokeRefreshToken,
   updateLastUsed,
 } from './refresh-tokens.js'
+import { infrastructureErrorResponse } from '../utils/infrastructure-error-response.js'
 
 /**
  * Parse JSON body from request
@@ -225,10 +226,15 @@ export async function handleTokenRequest(
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error) {
+    const infrastructure = infrastructureErrorResponse(error, 'oauth')
+    if (infrastructure) {
+      return infrastructure
+    }
+    console.error('Unexpected error:', error)
     return new Response(
       JSON.stringify({
         error: 'server_error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Internal server error',
       } satisfies ErrorResponse),
       {
         status: 500,
@@ -383,10 +389,15 @@ export async function handleRefreshRequest(
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error) {
+    const infrastructure = infrastructureErrorResponse(error, 'oauth')
+    if (infrastructure) {
+      return infrastructure
+    }
+    console.error('Unexpected error:', error)
     return new Response(
       JSON.stringify({
         error: 'server_error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Internal server error',
       } satisfies ErrorResponse),
       {
         status: 500,
@@ -474,10 +485,15 @@ export async function handleRevokeRequest(
       }
     )
   } catch (error) {
+    const infrastructure = infrastructureErrorResponse(error, 'oauth')
+    if (infrastructure) {
+      return infrastructure
+    }
+    console.error('Unexpected error:', error)
     return new Response(
       JSON.stringify({
         error: 'server_error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Internal server error',
       } satisfies ErrorResponse),
       {
         status: 500,
