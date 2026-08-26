@@ -20,3 +20,6 @@ ai-dev-tasks/
 out/
 .turbo/
 .bun/
+
+# Brain - secret key stored after registration
+brain/config.json
